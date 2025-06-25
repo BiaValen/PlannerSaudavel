@@ -1,0 +1,184 @@
+{
+    "Segunda": {
+        "Café da manhã 🍳": {
+            "meal": "Banana com cacau, aveia e whey",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Queijo com fruta",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Almoço no RU",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Snack de grão-de-bico ou milho",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Sopa de legumes com frango",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Chocolate 70%",
+            "people": 1
+        }
+    },
+    "Terça": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    },
+    "Quarta": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    },
+    "Quinta": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    },
+    "Sexta": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    },
+    "Sábado": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    },
+    "Domingo": {
+        "Café da manhã 🍳": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da manhã 🍎": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Almoço 🍲": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Lanche da tarde 🥪": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Jantar 🥗": {
+            "meal": "Nenhuma",
+            "people": 1
+        },
+        "Doce ou extra 🍬": {
+            "meal": "Nenhuma",
+            "people": 1
+        }
+    }
+}
