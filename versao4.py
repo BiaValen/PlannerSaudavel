@@ -7,6 +7,8 @@ import copy
 import re
 from fpdf import FPDF
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Planner Alimentar Inteligente",
@@ -176,8 +178,9 @@ REFEICOES_BASE = {
 }
 
 # --- ARQUIVOS, CONSTANTES E FILTROS ---
-PLANNER_FILE = "planner_final_selecoes.json"
-CUSTOM_REFEICOES_FILE = "refeicoes_personalizadas_final.json"
+# Usa o BASE_DIR para montar o caminho completo para os arquivos na pasta "banco de dados"
+PLANNER_FILE = os.path.join(BASE_DIR, "banco de dados", "planner_final_selecoes.json")
+CUSTOM_REFEICOES_FILE = os.path.join(BASE_DIR, "banco de dados", "refeicoes_personalizadas_final.json")
 DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
 SHOPPING_LIST_EXCLUSIONS = ['arroz', 'feijão', '(ru)', 'pitada']
 
@@ -207,34 +210,35 @@ def parse_label(formatted_label):
     """Extrai o nome original da refeição do label formatado."""
     return re.sub(r'\s\(~\d+\s+kcal\)$', '', formatted_label)
 def generate_pdf_list(shopping_list_data):
-    """Gera um PDF da lista de compras."""
+    """Gera um PDF da lista de compras usando uma fonte Unicode empacotada."""
     ingredientes, unidades = shopping_list_data
     
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
+    
+    # CORREÇÃO: Define o caminho para a fonte usando o BASE_DIR e a pasta "fonte"
+    font_path = os.path.join(BASE_DIR, "fonte", "DejaVuSans.ttf")
+    
+    # Adiciona a fonte Unicode ao PDF usando o caminho completo.
+    pdf.add_font("DejaVu", "", font_path)
+
+    # Usa a nova fonte "DejaVu"
+    pdf.set_font("DejaVu", "", 16)
     pdf.cell(0, 10, "Lista de Compras Semanal", 0, 1, "C")
-    pdf.set_font("Helvetica", "", 10)
+    
+    pdf.set_font("DejaVu", "", 10)
     pdf.cell(0, 8, f"Gerada em: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, "C")
     pdf.ln(10)
 
-    pdf.set_font("Helvetica", "", 12)
+    pdf.set_font("DejaVu", "", 12)
     for item, quantidade in sorted(ingredientes.items()):
         unidade = unidades.get(item, "unidade(s)")
         quantidade_str = f"{int(quantidade)}" if quantidade == int(quantidade) else f"{quantidade:.2f}".replace('.00', '')
         
-        # O try/except é para lidar com caracteres que podem não ser suportados pelo encode padrão
-        try:
-            # Adiciona um quadradinho para servir de checkbox no PDF
-            # Usando uma string unicode para o quadradinho
-            item_line = f"\u25A1  {quantidade_str} {unidade} de {item}"
-            pdf.cell(0, 10, item_line, 0, 1)
-        except UnicodeEncodeError:
-            item_line = f"[] {quantidade_str} {unidade} de {item.encode('latin-1', 'replace').decode('latin-1')}"
-            pdf.cell(0, 10, item_line, 0, 1)
+        item_line = f"□  {quantidade_str} {unidade} de {item}"
+        pdf.cell(0, 10, item_line, 0, 1)
 
-    # AQUI ESTÁ A CORREÇÃO:
-    return pdf.output(dest='S')
+    return bytes(pdf.output(dest='S'))
 
 
 # --- INICIALIZAÇÃO DO ESTADO DA SESSÃO ---

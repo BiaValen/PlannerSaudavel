@@ -2,10 +2,10 @@
     "Segunda": {
         "Café da manhã 🍳": {
             "meal": "Banana com cacau, aveia e whey",
-            "people": 2
+            "people": 1
         },
         "Lanche da manhã 🍎": {
-            "meal": "Fruta com chocolate 70%",
+            "meal": "Queijo com fruta",
             "people": 1
         },
         "Almoço 🍲": {
@@ -13,15 +13,15 @@
             "people": 1
         },
         "Lanche da tarde 🥪": {
-            "meal": "Torradas integrais com requeijão",
+            "meal": "Snack de grão-de-bico ou milho",
             "people": 1
         },
         "Jantar 🥗": {
-            "meal": "Sanduíche integral com ovo",
+            "meal": "Sopa de legumes com frango",
             "people": 1
         },
         "Doce ou extra 🍬": {
-            "meal": "Café com gotas de chocolate",
+            "meal": "Chocolate 70%",
             "people": 1
         }
     },
