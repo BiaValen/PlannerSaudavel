@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import csv
 import os
 from collections import defaultdict
 from datetime import datetime
@@ -181,6 +182,7 @@ REFEICOES_BASE = {
 # Usa o BASE_DIR para montar o caminho completo para os arquivos na pasta "banco de dados"
 PLANNER_FILE = os.path.join(BASE_DIR, "banco de dados", "planner_final_selecoes.json")
 CUSTOM_REFEICOES_FILE = os.path.join(BASE_DIR, "banco de dados", "refeicoes_personalizadas_final.json")
+SALADA_FILE = os.path.join(BASE_DIR, "banco de dados", "ingredientes_salada.csv")
 DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
 SHOPPING_LIST_EXCLUSIONS = ['arroz', 'feijão', '(ru)', 'pitada']
 
@@ -209,6 +211,23 @@ def format_label(meal_name):
 def parse_label(formatted_label):
     """Extrai o nome original da refeição do label formatado."""
     return re.sub(r'\s\(~\d+\s+kcal\)$', '', formatted_label)
+def carregar_ingredientes_salada(filepath):
+    """Lê o CSV de ingredientes da salada e agrupa por categoria (mantendo a ordem do arquivo)."""
+    categorias = {}
+    if not os.path.exists(filepath):
+        return categorias
+    with open(filepath, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            categorias.setdefault(row["Categoria"], []).append({
+                "nome": row["Ingrediente"],
+                "porcao": row["Porção"],
+                "kcal": float(row["Calorias (kcal)"]),
+                "prot": float(row["Proteína (g)"]),
+                "carb": float(row["Carbo (g)"]),
+                "gord": float(row["Gordura (g)"]),
+            })
+    return categorias
+
 def generate_pdf_list(shopping_list_data):
     """Gera um PDF da lista de compras usando uma fonte Unicode empacotada."""
     ingredientes, unidades = shopping_list_data
@@ -302,93 +321,159 @@ with st.sidebar:
         st.info("Funcionalidade em desenvolvimento.")
 
 
+# --- ABAS ---
+tab_planner, tab_salada = st.tabs(["🗓️ Planner Semanal", "🥗 Monte sua Salada"])
+
 # --- LAYOUT PRINCIPAL (PLANNER E LISTA) ---
-main_cols = st.columns([2, 1.5]) 
+with tab_planner:
+    main_cols = st.columns([2, 1.5]) 
 
-with main_cols[0]:
-    st.subheader("🗓️ Seu Plano Semanal")
-    dia_hoje_index = datetime.now().weekday() 
+    with main_cols[0]:
+        st.subheader("🗓️ Seu Plano Semanal")
+        dia_hoje_index = datetime.now().weekday() 
 
-    for i, dia in enumerate(DIAS_SEMANA):
-        with st.expander(f"### {dia}", expanded=(i == dia_hoje_index)):
-            # Lógica de seleção de refeições mantida da versão anterior
-            if dia not in st.session_state.selecoes:
-                st.session_state.selecoes[dia] = {}
+        for i, dia in enumerate(DIAS_SEMANA):
+            with st.expander(f"### {dia}", expanded=(i == dia_hoje_index)):
+                # Lógica de seleção de refeições mantida da versão anterior
+                if dia not in st.session_state.selecoes:
+                    st.session_state.selecoes[dia] = {}
             
-            for categoria, opcoes in st.session_state.refeicoes_disponiveis.items():
-                if categoria not in st.session_state.selecoes[dia]:
-                     st.session_state.selecoes[dia][categoria] = {}
+                for categoria, opcoes in st.session_state.refeicoes_disponiveis.items():
+                    if categoria not in st.session_state.selecoes[dia]:
+                         st.session_state.selecoes[dia][categoria] = {}
 
-                st.markdown(f"**{categoria}**")
-                meal_cols = st.columns([3, 1]) 
+                    st.markdown(f"**{categoria}**")
+                    meal_cols = st.columns([3, 1]) 
 
-                with meal_cols[0]:
-                    opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)]
+                    with meal_cols[0]:
+                        opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)]
                     
-                    selecao_atual_formatada = format_label(st.session_state.selecoes[dia][categoria].get('meal', "Nenhuma"))
-                    index_selecao = opcoes_formatadas.index(selecao_atual_formatada) if selecao_atual_formatada in opcoes_formatadas else 0
+                        selecao_atual_formatada = format_label(st.session_state.selecoes[dia][categoria].get('meal', "Nenhuma"))
+                        index_selecao = opcoes_formatadas.index(selecao_atual_formatada) if selecao_atual_formatada in opcoes_formatadas else 0
                     
-                    escolha_formatada = st.selectbox(
-                        f"sel_{dia}_{categoria}",
-                        options=opcoes_formatadas,
-                        index=index_selecao,
-                        key=f"{dia}_{categoria}_meal",
-                        label_visibility="collapsed"
-                    )
-                    st.session_state.selecoes[dia][categoria]['meal'] = parse_label(escolha_formatada)
+                        escolha_formatada = st.selectbox(
+                            f"sel_{dia}_{categoria}",
+                            options=opcoes_formatadas,
+                            index=index_selecao,
+                            key=f"{dia}_{categoria}_meal",
+                            label_visibility="collapsed"
+                        )
+                        st.session_state.selecoes[dia][categoria]['meal'] = parse_label(escolha_formatada)
 
-                with meal_cols[1]:
-                    st.session_state.selecoes[dia][categoria]['people'] = st.number_input(
-                        f"num_{dia}_{categoria}",
-                        min_value=1,
-                        value=st.session_state.selecoes[dia][categoria].get('people', 1),
-                        step=1,
-                        key=f"{dia}_{categoria}_people",
-                        label_visibility="collapsed"
-                    )
+                    with meal_cols[1]:
+                        st.session_state.selecoes[dia][categoria]['people'] = st.number_input(
+                            f"num_{dia}_{categoria}",
+                            min_value=1,
+                            value=st.session_state.selecoes[dia][categoria].get('people', 1),
+                            step=1,
+                            key=f"{dia}_{categoria}_people",
+                            label_visibility="collapsed"
+                        )
 
-            # --- RASTREADOR DE HIDRATAÇÃO VISUAL ---
-            st.markdown("---")
-            st.markdown(f"💧 **Hidratação** - Meta: 2 litros (250ml por check)")
+                # --- RASTREADOR DE HIDRATAÇÃO VISUAL ---
+                st.markdown("---")
+                st.markdown(f"💧 **Hidratação** - Meta: 2 litros (250ml por check)")
             
-            # Inicializa o estado do contador de água para o dia
-            if f"agua_checked_{dia}" not in st.session_state:
-                st.session_state[f"agua_checked_{dia}"] = 0
+                # Inicializa o estado do contador de água para o dia
+                if f"agua_checked_{dia}" not in st.session_state:
+                    st.session_state[f"agua_checked_{dia}"] = 0
             
-            water_cols = st.columns(8)
-            num_checked = 0
-            for j in range(8):
-                if water_cols[j].checkbox(f" ", key=f"agua_{dia}_{j}"):
-                    num_checked += 1
+                water_cols = st.columns(8)
+                num_checked = 0
+                for j in range(8):
+                    if water_cols[j].checkbox(f" ", key=f"agua_{dia}_{j}"):
+                        num_checked += 1
             
-            litros_consumidos = num_checked * 0.250
-            st.progress(litros_consumidos / 2.0)
-            st.caption(f"**Total: {litros_consumidos:.2f} / 2.00 Litros**")
+                litros_consumidos = num_checked * 0.250
+                st.progress(litros_consumidos / 2.0)
+                st.caption(f"**Total: {litros_consumidos:.2f} / 2.00 Litros**")
 
-with main_cols[1]:
-    st.subheader("🛒 Lista de Compras da Semana")
-    if st.session_state.get('lista_compras'):
-        ingredientes, unidades = st.session_state.lista_compras
-        if not ingredientes:
-            st.info("A lista de compras está vazia. Os itens selecionados já foram filtrados ou não precisam de compra (ex: itens do RU, arroz, feijão).")
+    with main_cols[1]:
+        st.subheader("🛒 Lista de Compras da Semana")
+        if st.session_state.get('lista_compras'):
+            ingredientes, unidades = st.session_state.lista_compras
+            if not ingredientes:
+                st.info("A lista de compras está vazia. Os itens selecionados já foram filtrados ou não precisam de compra (ex: itens do RU, arroz, feijão).")
+            else:
+                # Exibe a lista
+                for item, quantidade in sorted(ingredientes.items()):
+                    unidade = unidades.get(item, "unidade(s)")
+                    quantidade_str = f"{int(quantidade)}" if quantidade == int(quantidade) else f"{quantidade:.2f}".replace('.00', '')
+                    label = f"**{quantidade_str} {unidade}** de {item}"
+                    st.checkbox(label, key=f"check_{item}")
+
+                # Botão de Exportar para PDF
+                pdf_data = generate_pdf_list(st.session_state.lista_compras)
+                st.download_button(
+                    label="📥 Exportar Lista para PDF",
+                    data=pdf_data,
+                    file_name=f"lista_compras_{datetime.now().strftime('%Y-%m-%d')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="secondary"
+                )
+
         else:
-            # Exibe a lista
-            for item, quantidade in sorted(ingredientes.items()):
-                unidade = unidades.get(item, "unidade(s)")
-                quantidade_str = f"{int(quantidade)}" if quantidade == int(quantidade) else f"{quantidade:.2f}".replace('.00', '')
-                label = f"**{quantidade_str} {unidade}** de {item}"
-                st.checkbox(label, key=f"check_{item}")
+            st.info("Clique em 'Gerar Lista de Compras' na barra lateral para ver seus ingredientes.")
 
-            # Botão de Exportar para PDF
-            pdf_data = generate_pdf_list(st.session_state.lista_compras)
-            st.download_button(
-                label="📥 Exportar Lista para PDF",
-                data=pdf_data,
-                file_name=f"lista_compras_{datetime.now().strftime('%Y-%m-%d')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="secondary"
-            )
 
+# --- ABA: MONTE SUA SALADA ---
+with tab_salada:
+    st.subheader("🥗 Monte sua Salada")
+    st.caption("Escolha os ingredientes de cada categoria e ajuste a quantidade de porções. Os totais são calculados automaticamente.")
+
+    ingredientes_salada = carregar_ingredientes_salada(SALADA_FILE)
+    if not ingredientes_salada:
+        st.error("Arquivo de ingredientes da salada não encontrado.")
     else:
-        st.info("Clique em 'Gerar Lista de Compras' na barra lateral para ver seus ingredientes.")
+        itens_escolhidos = []
+        salada_cols = st.columns([2, 1.5])
+
+        with salada_cols[0]:
+            for categoria, itens in ingredientes_salada.items():
+                por_nome = {i["nome"]: i for i in itens}
+                escolhidos = st.multiselect(
+                    f"**{categoria}**",
+                    options=list(por_nome.keys()),
+                    format_func=lambda n, d=por_nome: f"{n} — {d[n]['porcao']} (~{d[n]['kcal']:g} kcal)",
+                    key=f"salada_{categoria}",
+                )
+                for nome in escolhidos:
+                    item = por_nome[nome]
+                    qtd = st.number_input(
+                        f"Porções de {nome} ({item['porcao']})",
+                        min_value=0.5, max_value=10.0, value=1.0, step=0.5,
+                        key=f"salada_qtd_{categoria}_{nome}",
+                    )
+                    itens_escolhidos.append((categoria, item, qtd))
+
+        with salada_cols[1]:
+            st.markdown("#### 📊 Totais da sua salada")
+            total_kcal = sum(i["kcal"] * q for _, i, q in itens_escolhidos)
+            total_prot = sum(i["prot"] * q for _, i, q in itens_escolhidos)
+            total_carb = sum(i["carb"] * q for _, i, q in itens_escolhidos)
+            total_gord = sum(i["gord"] * q for _, i, q in itens_escolhidos)
+
+            m1, m2 = st.columns(2)
+            m1.metric("Calorias", f"{total_kcal:.0f} kcal")
+            m2.metric("Proteína", f"{total_prot:.0f} g")
+            m3, m4 = st.columns(2)
+            m3.metric("Carbo", f"{total_carb:.0f} g")
+            m4.metric("Gordura", f"{total_gord:.0f} g")
+
+            if itens_escolhidos:
+                st.markdown("#### 🧾 Ingredientes")
+                st.table([
+                    {
+                        "Categoria": cat,
+                        "Ingrediente": i["nome"],
+                        "Qtd": f"{q:g} × {i['porcao']}",
+                        "kcal": f"{i['kcal'] * q:.0f}",
+                        "P (g)": f"{i['prot'] * q:.0f}",
+                        "C (g)": f"{i['carb'] * q:.0f}",
+                        "G (g)": f"{i['gord'] * q:.0f}",
+                    }
+                    for cat, i, q in itens_escolhidos
+                ])
+            else:
+                st.info("Selecione ingredientes ao lado para montar sua salada.")
