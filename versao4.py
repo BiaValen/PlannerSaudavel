@@ -581,9 +581,6 @@ with st.sidebar:
     st.divider()
     st.markdown("## 🥑 Ações")
 
-    if st.button("💾 Salvar plano semanal", use_container_width=True, type="primary"):
-        salvar_dados(st.session_state.selecoes, PLANNER_FILE)
-        st.toast('Plano salvo com sucesso!', icon='✅')
 
     if st.button("🛒 Gerar lista de compras", use_container_width=True):
         aggregated_ingredients = defaultdict(float)
@@ -610,7 +607,7 @@ with st.sidebar:
         st.session_state.lista_compras = (aggregated_ingredients, unidades)
         st.toast('Lista de compras gerada!', icon='📝')
 
-    st.caption("Lembre de salvar o plano depois de mudar as refeições.")
+    st.caption("✅ O plano da semana é salvo automaticamente a cada mudança.")
 
 
 
@@ -625,9 +622,10 @@ if pagina == PAGINA_PLANNER:
 
         for i, dia in enumerate(DIAS_SEMANA):
             hoje = i == dia_hoje_index
-            kcal_dia = _kcal_do_dia(dia)
-            titulo = f"{'📍 ' if hoje else ''}**{dia}**{' · hoje' if hoje else ''}  —  {kcal_dia} kcal"
+            # O título precisa ser fixo: se ele mudar (ex.: com as calorias), o Streamlit recria a sanfona fechada
+            titulo = f"{'📍 ' if hoje else ''}**{dia}**{' · hoje' if hoje else ''}"
             with st.expander(titulo, expanded=hoje):
+                st.caption(f"Total do dia: **{_kcal_do_dia(dia)} kcal**")
                 # Lógica de seleção de refeições mantida da versão anterior
                 if dia not in st.session_state.selecoes:
                     st.session_state.selecoes[dia] = {}
@@ -774,9 +772,14 @@ def _excluir_salada(nome):
 def _adicionar_ao_planner(nome, chave, prefixo=PREFIXO_SALADA):
     dia = st.session_state[f"{chave}_dia"]
     categoria = st.session_state[f"{chave}_refeicao"]
-    st.session_state.selecoes.setdefault(dia, {}).setdefault(categoria, {})['meal'] = prefixo + nome
+    selecao = st.session_state.selecoes.setdefault(dia, {}).setdefault(categoria, {})
+    anterior = selecao.get('meal', "Nenhuma")
+    selecao['meal'] = prefixo + nome
     st.session_state.sincronizar_planner = True
-    st.toast(f"'{nome}' colocado em {dia} – {categoria}. Lembre de salvar o plano.", icon="🗓️")
+    if anterior not in ("Nenhuma", prefixo + nome):
+        st.toast(f"'{nome}' colocado em {dia} – {categoria}, no lugar de '{anterior}'.", icon="🔁")
+    else:
+        st.toast(f"'{nome}' colocado em {dia} – {categoria}.", icon="🗓️")
 
 def _totais(itens):
     return {k: sum(i[k] * q for _, i, q in itens) for k in ("kcal", "prot", "carb", "gord")}
@@ -1340,3 +1343,11 @@ if pagina == PAGINA_PRATO:
             acoes = st.columns(2)
             acoes[0].button("✏️ Carregar para editar", key=f"{chave}_load", on_click=_carregar_prato, args=(nome,), use_container_width=True)
             acoes[1].button("🗑️ Excluir", key=f"{chave}_del", on_click=_excluir_prato, args=(nome,), use_container_width=True)
+
+
+# --- SALVAMENTO AUTOMÁTICO DO PLANNER ---
+# Grava o plano da semana sempre que algo muda, para não perder nada ao recarregar a página ou fechar o app
+_planner_atual = json.dumps(st.session_state.selecoes, sort_keys=True, ensure_ascii=False)
+if st.session_state.get("_planner_salvo") != _planner_atual:
+    salvar_dados(st.session_state.selecoes, PLANNER_FILE)
+    st.session_state._planner_salvo = _planner_atual
