@@ -330,8 +330,18 @@ if 'refeicoes_disponiveis' not in st.session_state:
 if 'lista_compras' not in st.session_state:
     st.session_state.lista_compras = None
 
+# Formato: {nome: {"itens": {categoria: [ingredientes]}, "refeicoes": [refeições do planner onde a salada aparece]}}
+# (arquivos do formato antigo guardavam só os itens; nesse caso a salada aparece em todas as refeições)
 if 'saladas_salvas' not in st.session_state:
-    st.session_state.saladas_salvas = carregar_dados(SALADAS_SALVAS_FILE)
+    st.session_state.saladas_salvas = {
+        nome: dados if "itens" in dados else {"itens": dados, "refeicoes": list(st.session_state.refeicoes_disponiveis)}
+        for nome, dados in carregar_dados(SALADAS_SALVAS_FILE).items()
+    }
+
+if 'salada_refeicoes' not in st.session_state:
+    st.session_state.salada_refeicoes = [
+        r for r in st.session_state.refeicoes_disponiveis if r.startswith(("Almoço", "Jantar"))
+    ]
 
 INGREDIENTES_SALADA = carregar_ingredientes_salada(SALADA_FILE)
 
@@ -355,28 +365,56 @@ if st.session_state.pop("ingredientes_alterados", False):
     st.session_state.sincronizar_planner = True
 
 # As saladas salvas viram refeições: aparecem no planner e entram na lista de compras
-for _nome, _combinacao in st.session_state.saladas_salvas.items():
+for _nome, _dados in st.session_state.saladas_salvas.items():
     REFEICOES_COM_DETALHES[PREFIXO_SALADA + _nome] = salada_para_refeicao(
-        itens_da_combinacao(_combinacao, INGREDIENTES_SALADA)
+        itens_da_combinacao(_dados["itens"], INGREDIENTES_SALADA)
     )
 
 if st.session_state.pop("sincronizar_planner", False):
     _sincronizar_planner()
 
 # --- INTERFACE ---
-st.title("🥑 Planner Alimentar Inteligente")
-st.markdown("Planeje sua semana, defina o número de pessoas, controle sua hidratação e gere a lista de compras para levar ao mercado.")
+st.markdown("""
+<style>
+    /* Cartões (containers com borda) mais suaves */
+    [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
+    /* Números dos totais */
+    [data-testid="stMetricValue"] { font-size: 1.6rem; color: #2F8F5B; }
+    [data-testid="stMetricLabel"] p { font-size: 0.85rem; opacity: 0.75; }
+    /* Abas maiores */
+    button[data-baseweb="tab"] p { font-size: 1.05rem; font-weight: 600; }
+    /* Opções desabilitadas bem apagadas */
+    [data-testid="stCheckbox"] label:has(input:disabled) { opacity: 0.45; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🥑 Planner Saudável")
+st.caption("Monte suas saladas, planeje a semana e gere a lista de compras.")
+
+def _refeicao_atual(dia, categoria):
+    """Refeição escolhida (considera o valor do selectbox, que já vem atualizado no início da execução)."""
+    chave = f"{dia}_{categoria}_meal"
+    if chave in st.session_state:
+        return parse_label(st.session_state[chave])
+    return st.session_state.selecoes.get(dia, {}).get(categoria, {}).get('meal', "Nenhuma")
+
+def _kcal_do_dia(dia):
+    total = 0
+    for categoria in st.session_state.refeicoes_disponiveis:
+        detalhes = REFEICOES_COM_DETALHES.get(_refeicao_atual(dia, categoria))
+        if detalhes:
+            total += detalhes['calories']
+    return total
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    st.image("https://static.vecteezy.com/system/resources/previews/010/897/232/original/avatar-icon-of-girl-in-a-baseball-cap-and-with-headphones-in-a-flat-style-vector.jpg", width=120)
-    st.header("Ações")
+    st.markdown("## 🥑 Ações")
 
-    if st.button("Salvar Plano Semanal", use_container_width=True, type="primary"):
+    if st.button("💾 Salvar plano semanal", use_container_width=True, type="primary"):
         salvar_dados(st.session_state.selecoes, PLANNER_FILE)
         st.toast('Plano salvo com sucesso!', icon='✅')
 
-    if st.button("Gerar Lista de Compras", use_container_width=True):
+    if st.button("🛒 Gerar lista de compras", use_container_width=True):
         aggregated_ingredients = defaultdict(float)
         unidades = {}
         
@@ -400,6 +438,8 @@ with st.sidebar:
 
         st.session_state.lista_compras = (aggregated_ingredients, unidades)
         st.toast('Lista de compras gerada!', icon='📝')
+
+    st.caption("Lembre de salvar o plano depois de mudar as refeições.")
     
     # Adicionar prato customizado (opcional)
     with st.expander("➕ Adicionar Prato Customizado"):
@@ -411,14 +451,18 @@ tab_planner, tab_salada = st.tabs(["🗓️ Planner Semanal", "🥗 Monte sua Sa
 
 # --- LAYOUT PRINCIPAL (PLANNER E LISTA) ---
 with tab_planner:
-    main_cols = st.columns([2, 1.5]) 
+    main_cols = st.columns([2, 1.3], gap="large")
 
     with main_cols[0]:
-        st.subheader("🗓️ Seu Plano Semanal")
+        st.subheader("Seu plano da semana")
+        st.caption("Abra um dia para escolher as refeições. Suas saladas salvas aparecem com 🥗.")
         dia_hoje_index = datetime.now().weekday() 
 
         for i, dia in enumerate(DIAS_SEMANA):
-            with st.expander(f"### {dia}", expanded=(i == dia_hoje_index)):
+            hoje = i == dia_hoje_index
+            kcal_dia = _kcal_do_dia(dia)
+            titulo = f"{'📍 ' if hoje else ''}**{dia}**{' · hoje' if hoje else ''}  —  {kcal_dia} kcal"
+            with st.expander(titulo, expanded=hoje):
                 # Lógica de seleção de refeições mantida da versão anterior
                 if dia not in st.session_state.selecoes:
                     st.session_state.selecoes[dia] = {}
@@ -427,37 +471,34 @@ with tab_planner:
                     if categoria not in st.session_state.selecoes[dia]:
                          st.session_state.selecoes[dia][categoria] = {}
 
-                    st.markdown(f"**{categoria}**")
-                    meal_cols = st.columns([3, 1]) 
+                    meal_cols = st.columns([4, 1]) 
 
                     with meal_cols[0]:
-                        opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)] + [format_label(PREFIXO_SALADA + n) for n in sorted(st.session_state.saladas_salvas)]
+                        opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)] + [format_label(PREFIXO_SALADA + n) for n, d in sorted(st.session_state.saladas_salvas.items()) if categoria in d["refeicoes"]]
                     
                         selecao_atual_formatada = format_label(st.session_state.selecoes[dia][categoria].get('meal', "Nenhuma"))
                         index_selecao = opcoes_formatadas.index(selecao_atual_formatada) if selecao_atual_formatada in opcoes_formatadas else 0
                     
                         escolha_formatada = st.selectbox(
-                            f"sel_{dia}_{categoria}",
+                            categoria,
                             options=opcoes_formatadas,
                             index=index_selecao if f"{dia}_{categoria}_meal" not in st.session_state else 0,
                             key=f"{dia}_{categoria}_meal",
-                            label_visibility="collapsed"
                         )
                         st.session_state.selecoes[dia][categoria]['meal'] = parse_label(escolha_formatada)
 
                     with meal_cols[1]:
                         st.session_state.selecoes[dia][categoria]['people'] = st.number_input(
-                            f"num_{dia}_{categoria}",
+                            "👤 Pessoas",
                             min_value=1,
                             value=st.session_state.selecoes[dia][categoria].get('people', 1),
                             step=1,
                             key=f"{dia}_{categoria}_people",
-                            label_visibility="collapsed"
                         )
 
                 # --- RASTREADOR DE HIDRATAÇÃO VISUAL ---
-                st.markdown("---")
-                st.markdown(f"💧 **Hidratação** - Meta: 2 litros (250ml por check)")
+                st.divider()
+                st.markdown("💧 **Hidratação** · meta de 2 litros (cada copo = 250 ml)")
             
                 # Inicializa o estado do contador de água para o dia
                 if f"agua_checked_{dia}" not in st.session_state:
@@ -466,40 +507,41 @@ with tab_planner:
                 water_cols = st.columns(8)
                 num_checked = 0
                 for j in range(8):
-                    if water_cols[j].checkbox(f" ", key=f"agua_{dia}_{j}"):
+                    if water_cols[j].checkbox("🥛", key=f"agua_{dia}_{j}"):
                         num_checked += 1
             
                 litros_consumidos = num_checked * 0.250
-                st.progress(litros_consumidos / 2.0)
-                st.caption(f"**Total: {litros_consumidos:.2f} / 2.00 Litros**")
+                st.progress(litros_consumidos / 2.0, text=f"{litros_consumidos:.2f} de 2,00 litros")
 
     with main_cols[1]:
-        st.subheader("🛒 Lista de Compras da Semana")
-        if st.session_state.get('lista_compras'):
-            ingredientes, unidades = st.session_state.lista_compras
-            if not ingredientes:
-                st.info("A lista de compras está vazia. Os itens selecionados já foram filtrados ou não precisam de compra (ex: itens do RU, arroz, feijão).")
+        with st.container(border=True):
+            st.subheader("🛒 Lista de compras")
+            if st.session_state.get('lista_compras'):
+                ingredientes, unidades = st.session_state.lista_compras
+                if not ingredientes:
+                    st.info("A lista de compras está vazia. Os itens selecionados já foram filtrados ou não precisam de compra (ex: itens do RU, arroz, feijão).")
+                else:
+                    st.caption("Marque o que já está no carrinho.")
+                    # Exibe a lista
+                    for item, quantidade in sorted(ingredientes.items()):
+                        unidade = unidades.get(item, "unidade(s)")
+                        quantidade_str = f"{int(quantidade)}" if quantidade == int(quantidade) else f"{quantidade:.2f}".replace('.00', '')
+                        label = f"**{quantidade_str} {unidade}** de {item}"
+                        st.checkbox(label, key=f"check_{item}")
+
+                    # Botão de Exportar para PDF
+                    pdf_data = generate_pdf_list(st.session_state.lista_compras)
+                    st.download_button(
+                        label="📥 Baixar lista em PDF",
+                        data=pdf_data,
+                        file_name=f"lista_compras_{datetime.now().strftime('%Y-%m-%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="secondary"
+                    )
+
             else:
-                # Exibe a lista
-                for item, quantidade in sorted(ingredientes.items()):
-                    unidade = unidades.get(item, "unidade(s)")
-                    quantidade_str = f"{int(quantidade)}" if quantidade == int(quantidade) else f"{quantidade:.2f}".replace('.00', '')
-                    label = f"**{quantidade_str} {unidade}** de {item}"
-                    st.checkbox(label, key=f"check_{item}")
-
-                # Botão de Exportar para PDF
-                pdf_data = generate_pdf_list(st.session_state.lista_compras)
-                st.download_button(
-                    label="📥 Exportar Lista para PDF",
-                    data=pdf_data,
-                    file_name=f"lista_compras_{datetime.now().strftime('%Y-%m-%d')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="secondary"
-                )
-
-        else:
-            st.info("Clique em 'Gerar Lista de Compras' na barra lateral para ver seus ingredientes.")
+                st.info("Escolha as refeições da semana e clique em **🛒 Gerar lista de compras** na barra lateral.")
 
 
 # --- ABA: MONTE SUA SALADA ---
@@ -511,37 +553,57 @@ def _marcados(categoria):
     return [i["nome"] for i in INGREDIENTES_SALADA.get(categoria, [])
             if st.session_state.get(_chave_check(categoria, i["nome"]), False)]
 
+def _tirar_do_planner(nome, manter_em=()):
+    """Tira a salada das refeições do planner que não estão em `manter_em`."""
+    refeicao = PREFIXO_SALADA + nome
+    for categorias in st.session_state.selecoes.values():
+        if isinstance(categorias, dict):
+            for categoria, selecao in categorias.items():
+                if isinstance(selecao, dict) and selecao.get('meal') == refeicao and categoria not in manter_em:
+                    selecao['meal'] = "Nenhuma"
+    st.session_state.sincronizar_planner = True
+
 def _salvar_salada():
     nome = st.session_state.get("salada_nome", "").strip()
     combinacao = {c: _marcados(c) for c in INGREDIENTES_SALADA}
+    refeicoes = list(st.session_state.get("salada_refeicoes", []))
     if not nome:
-        st.toast("Dê um nome para a combinação.", icon="⚠️")
+        st.toast("Dê um nome para a salada.", icon="⚠️")
         return
     if not any(combinacao.values()):
         st.toast("Escolha pelo menos um ingrediente.", icon="⚠️")
         return
-    st.session_state.saladas_salvas[nome] = combinacao
+    if not refeicoes:
+        st.toast("Escolha em quais refeições a salada aparece.", icon="⚠️")
+        return
+    st.session_state.saladas_salvas[nome] = {"itens": combinacao, "refeicoes": refeicoes}
     salvar_dados(st.session_state.saladas_salvas, SALADAS_SALVAS_FILE)
-    st.session_state.sincronizar_planner = True
+    st.session_state[f"aparece_{nome}"] = refeicoes
+    _tirar_do_planner(nome, manter_em=refeicoes)
     st.toast(f"Salada '{nome}' salva!", icon="✅")
 
 def _carregar_salada(nome):
-    combinacao = st.session_state.saladas_salvas.get(nome, {})
+    dados = st.session_state.saladas_salvas.get(nome, {"itens": {}, "refeicoes": []})
     for categoria, itens in INGREDIENTES_SALADA.items():
         for item in itens:
-            st.session_state[_chave_check(categoria, item["nome"])] = item["nome"] in combinacao.get(categoria, [])
+            st.session_state[_chave_check(categoria, item["nome"])] = item["nome"] in dados["itens"].get(categoria, [])
     st.session_state.salada_nome = nome
+    st.session_state.salada_refeicoes = list(dados["refeicoes"])
+
+def _mudar_refeicoes(nome):
+    refeicoes = list(st.session_state.get(f"aparece_{nome}", []))
+    if not refeicoes:
+        st.session_state[f"aparece_{nome}"] = st.session_state.saladas_salvas[nome]["refeicoes"]
+        st.toast("A salada precisa aparecer em pelo menos uma refeição.", icon="⚠️")
+        return
+    st.session_state.saladas_salvas[nome]["refeicoes"] = refeicoes
+    salvar_dados(st.session_state.saladas_salvas, SALADAS_SALVAS_FILE)
+    _tirar_do_planner(nome, manter_em=refeicoes)
 
 def _excluir_salada(nome):
     st.session_state.saladas_salvas.pop(nome, None)
     salvar_dados(st.session_state.saladas_salvas, SALADAS_SALVAS_FILE)
-    refeicao = PREFIXO_SALADA + nome
-    st.session_state.sincronizar_planner = True
-    for categorias in st.session_state.selecoes.values():
-        if isinstance(categorias, dict):
-            for selecao in categorias.values():
-                if isinstance(selecao, dict) and selecao.get('meal') == refeicao:
-                    selecao['meal'] = "Nenhuma"
+    _tirar_do_planner(nome)
     st.toast(f"Salada '{nome}' excluída.", icon="🗑️")
 
 def _adicionar_ao_planner(nome, chave):
@@ -554,105 +616,148 @@ def _adicionar_ao_planner(nome, chave):
 def _totais(itens):
     return {k: sum(i[k] * q for _, i, q in itens) for k in ("kcal", "prot", "carb", "gord")}
 
-with tab_salada:
-    st.subheader("🥗 Monte sua Salada")
-    st.caption(
-        "Regra do pote: 1–2 Bases (dividem os 100g) + 1 Proteína + 1 Carbo (ou 2 com meia porção cada) "
-        "+ 2 Vegetais + 1 Molho/Gordura."
-    )
+def _limpar_salada():
+    for categoria, itens in INGREDIENTES_SALADA.items():
+        for item in itens:
+            st.session_state[_chave_check(categoria, item["nome"])] = False
+    st.session_state.salada_nome = ""
 
+def _qtd_txt(item, fator):
+    return item["porcao"] if fator == 1 else f"½ × {item['porcao']}"
+
+def _barra_macros(t):
+    """Distribuição das calorias entre proteína, carbo e gordura."""
+    kcal_macros = {"Proteína": t["prot"] * 4, "Carbo": t["carb"] * 4, "Gordura": t["gord"] * 9}
+    soma = sum(kcal_macros.values())
+    for nome, kcal in kcal_macros.items():
+        pct = kcal / soma if soma else 0
+        st.progress(pct, text=f"{nome}: {pct:.0%} das calorias")
+
+with tab_salada:
     if not INGREDIENTES_SALADA:
         st.error("Arquivo de ingredientes da salada não encontrado.")
     else:
         combinacao_atual = {}
         pendencias = []
-        salada_cols = st.columns([2, 1.5])
+        salada_cols = st.columns([1.6, 1], gap="large")
 
         with salada_cols[0]:
-            for categoria, itens in INGREDIENTES_SALADA.items():
+            st.subheader("Monte sua salada em 5 passos")
+            st.caption("Marque os ingredientes de cada passo. Quando o limite é atingido, as outras opções ficam cinza.")
+            for passo, (categoria, itens) in enumerate(INGREDIENTES_SALADA.items(), start=1):
                 minimo, maximo, divide = REGRAS_SALADA.get(categoria, (0, len(itens), False))
-                regra_txt = f"escolha {minimo}" if minimo == maximo else f"escolha {minimo} a {maximo}"
-                if divide:
-                    regra_txt += "; com 2, meia porção de cada"
-
-                st.markdown(f"**{categoria}** ({regra_txt})")
-                # Com o limite atingido, as opções não marcadas ficam desabilitadas (cinza)
-                limite_atingido = len(_marcados(categoria)) >= maximo
-                for item in itens:
-                    chave = _chave_check(categoria, item["nome"])
-                    st.checkbox(
-                        f"{item['nome']} — {item['porcao']} (~{item['kcal']:g} kcal)",
-                        key=chave,
-                        disabled=limite_atingido and not st.session_state.get(chave, False),
+                marcados = _marcados(categoria)
+                with st.container(border=True):
+                    cab = st.columns([3, 1])
+                    cab[0].markdown(f"#### {passo}. {categoria}")
+                    completo = minimo <= len(marcados) <= maximo
+                    cab[1].markdown(
+                        f"<div style='text-align:right; padding-top:0.6rem'>{'✅' if completo else '⏳'} "
+                        f"<b>{len(marcados)}/{maximo}</b></div>",
+                        unsafe_allow_html=True,
                     )
+                    regra_txt = f"Escolha {minimo}" if minimo == maximo else f"Escolha {minimo} ou {maximo}"
+                    if divide:
+                        regra_txt += " — com 2, vai meia porção de cada"
+                    st.caption(regra_txt)
+
+                    # Com o limite atingido, as opções não marcadas ficam desabilitadas (cinza)
+                    limite_atingido = len(marcados) >= maximo
+                    for item in itens:
+                        chave = _chave_check(categoria, item["nome"])
+                        st.checkbox(
+                            f"{item['nome']}  ·  {item['porcao']}  ·  **{item['kcal']:g} kcal**",
+                            key=chave,
+                            disabled=limite_atingido and not st.session_state.get(chave, False),
+                        )
                 escolhidos = _marcados(categoria)
                 if len(escolhidos) < minimo:
-                    pendencias.append(f"{categoria}: faltam {minimo - len(escolhidos)}")
+                    pendencias.append(f"{categoria} ({minimo - len(escolhidos)})")
                 combinacao_atual[categoria] = escolhidos
 
         itens_escolhidos = itens_da_combinacao(combinacao_atual, INGREDIENTES_SALADA)
 
         with salada_cols[1]:
-            st.markdown("#### 📊 Total da sua escolha")
-            t = _totais(itens_escolhidos)
-            m1, m2 = st.columns(2)
-            m1.metric("Calorias", f"{t['kcal']:.0f} kcal")
-            m2.metric("Proteína", f"{t['prot']:.0f} g")
-            m3, m4 = st.columns(2)
-            m3.metric("Carbo", f"{t['carb']:.0f} g")
-            m4.metric("Gordura", f"{t['gord']:.0f} g")
+            with st.container(border=True):
+                st.subheader("📊 Sua salada")
+                t = _totais(itens_escolhidos)
+                st.metric("Calorias", f"{t['kcal']:.0f} kcal")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Proteína", f"{t['prot']:.0f} g")
+                m2.metric("Carbo", f"{t['carb']:.0f} g")
+                m3.metric("Gordura", f"{t['gord']:.0f} g")
 
-            if pendencias:
-                st.info("Para seguir a regra do pote: " + " · ".join(pendencias))
+                if itens_escolhidos:
+                    _barra_macros(t)
+                    st.markdown("\n".join(
+                        f"- {i['nome']} · {_qtd_txt(i, q)} · {i['kcal'] * q:.0f} kcal"
+                        for _, i, q in itens_escolhidos
+                    ))
+                else:
+                    st.caption("Marque os ingredientes ao lado para ver os totais aqui.")
 
-            if itens_escolhidos:
-                st.markdown("#### 🧾 Ingredientes")
-                st.table([
-                    {
-                        "Categoria": cat,
-                        "Ingrediente": i["nome"],
-                        "Qtd": i["porcao"] if q == 1 else f"½ × {i['porcao']}",
-                        "kcal": f"{i['kcal'] * q:.0f}",
-                        "P (g)": f"{i['prot'] * q:.0f}",
-                        "C (g)": f"{i['carb'] * q:.0f}",
-                        "G (g)": f"{i['gord'] * q:.0f}",
-                    }
-                    for cat, i, q in itens_escolhidos
-                ])
+                if pendencias:
+                    st.info("Falta escolher: " + ", ".join(pendencias))
+                elif itens_escolhidos:
+                    st.success("Salada completa! 🎉")
 
-            st.markdown("#### 💾 Salvar combinação")
-            st.text_input("Nome da combinação", key="salada_nome", placeholder="Ex.: Salada de frango com milho")
-            st.button("Salvar salada", on_click=_salvar_salada, type="primary", use_container_width=True)
-            st.caption("Salvar com um nome que já existe substitui a combinação.")
+            with st.container(border=True):
+                st.markdown("#### 💾 Salvar esta salada")
+                st.text_input("Nome", key="salada_nome", placeholder="Ex.: Frango com milho")
+                st.multiselect(
+                    "Aparece no planner em",
+                    list(st.session_state.refeicoes_disponiveis),
+                    key="salada_refeicoes",
+                    help="A salada só aparece como opção nessas refeições.",
+                )
+                b1, b2 = st.columns(2)
+                b1.button("Salvar", on_click=_salvar_salada, type="primary", use_container_width=True)
+                b2.button("Limpar escolhas", on_click=_limpar_salada, use_container_width=True)
+                st.caption("Salvar com um nome que já existe substitui a salada.")
 
-        st.markdown("---")
+        st.divider()
         st.subheader("📚 Minhas saladas")
         if not st.session_state.saladas_salvas:
-            st.info("Nenhuma salada salva ainda.")
-        for idx, (nome, combinacao) in enumerate(sorted(st.session_state.saladas_salvas.items())):
+            st.info("Você ainda não salvou nenhuma salada. Monte uma acima e clique em **Salvar**.")
+        grade = st.columns(2, gap="medium")
+        for idx, (nome, dados) in enumerate(sorted(st.session_state.saladas_salvas.items())):
+            combinacao = dados["itens"]
             itens_salvos = itens_da_combinacao(combinacao, INGREDIENTES_SALADA)
             ts = _totais(itens_salvos)
-            with st.expander(f"{PREFIXO_SALADA}{nome} — {ts['kcal']:.0f} kcal · P {ts['prot']:.0f}g · C {ts['carb']:.0f}g · G {ts['gord']:.0f}g"):
+            with grade[idx % 2], st.container(border=True):
+                st.markdown(f"#### {PREFIXO_SALADA}{nome}")
+                st.markdown(
+                    f"**{ts['kcal']:.0f} kcal** · Proteína {ts['prot']:.0f} g · Carbo {ts['carb']:.0f} g · Gordura {ts['gord']:.0f} g"
+                )
                 faltando = [
                     n for c, nomes in combinacao.items() for n in nomes
                     if n not in {i["nome"] for i in INGREDIENTES_SALADA.get(c, [])}
                 ]
                 if faltando:
                     st.warning("Ingredientes que não existem mais na lista (ignorados no cálculo): " + ", ".join(faltando))
-                st.markdown("\n".join(
-                    f"- **{cat}:** {i['nome']} ({i['porcao'] if q == 1 else '½ × ' + i['porcao']})"
-                    for cat, i, q in itens_salvos
-                ))
-                chave = f"salada_salva_{idx}"
-                acoes = st.columns([1.2, 1.5, 1, 1, 1])
-                acoes[0].selectbox("Dia", DIAS_SEMANA, key=f"{chave}_dia")
-                acoes[1].selectbox("Refeição", list(st.session_state.refeicoes_disponiveis.keys()), key=f"{chave}_refeicao")
-                acoes[2].button("🗓️ Pôr na semana", key=f"{chave}_add", on_click=_adicionar_ao_planner, args=(nome, chave))
-                acoes[3].button("✏️ Carregar", key=f"{chave}_load", on_click=_carregar_salada, args=(nome,))
-                acoes[4].button("🗑️ Excluir", key=f"{chave}_del", on_click=_excluir_salada, args=(nome,))
+                st.caption(" · ".join(i["nome"] for _, i, _ in itens_salvos))
+
+                if f"aparece_{nome}" not in st.session_state:
+                    st.session_state[f"aparece_{nome}"] = list(dados["refeicoes"])
+                st.multiselect(
+                    "Aparece no planner em",
+                    list(st.session_state.refeicoes_disponiveis),
+                    key=f"aparece_{nome}",
+                    on_change=_mudar_refeicoes,
+                    args=(nome,),
+                )
+
+                chave = f"salada_salva_{nome}"
+                sel = st.columns(2)
+                sel[0].selectbox("Dia", DIAS_SEMANA, key=f"{chave}_dia")
+                sel[1].selectbox("Refeição", dados["refeicoes"], key=f"{chave}_refeicao")
+                st.button("🗓️ Pôr na semana", key=f"{chave}_add", on_click=_adicionar_ao_planner, args=(nome, chave), type="primary", use_container_width=True)
+                acoes = st.columns(2)
+                acoes[0].button("✏️ Carregar para editar", key=f"{chave}_load", on_click=_carregar_salada, args=(nome,), use_container_width=True)
+                acoes[1].button("🗑️ Excluir", key=f"{chave}_del", on_click=_excluir_salada, args=(nome,), use_container_width=True)
 
     # --- GERENCIAR INGREDIENTES ---
-    st.markdown("---")
+    st.divider()
     with st.expander("⚙️ Gerenciar ingredientes (adicionar, editar ou excluir)"):
         st.caption(
             "Edite direto na tabela. Para adicionar, use a última linha vazia; para excluir, "
