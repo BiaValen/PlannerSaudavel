@@ -352,11 +352,6 @@ def _sincronizar_planner():
 # Depois de editar a lista de ingredientes: tira das seleções o que não existe mais
 # e atualiza as saladas no planner (as calorias podem ter mudado)
 if st.session_state.pop("ingredientes_alterados", False):
-    for _categoria in REGRAS_SALADA:
-        _chave = f"salada_{_categoria}"
-        if _chave in st.session_state:
-            _validos = {i["nome"] for i in INGREDIENTES_SALADA.get(_categoria, [])}
-            st.session_state[_chave] = [n for n in st.session_state[_chave] if n in _validos]
     st.session_state.sincronizar_planner = True
 
 # As saladas salvas viram refeições: aparecem no planner e entram na lista de compras
@@ -508,9 +503,17 @@ with tab_planner:
 
 
 # --- ABA: MONTE SUA SALADA ---
+def _chave_check(categoria, nome):
+    return f"salada_{categoria}__{nome}"
+
+def _marcados(categoria):
+    """Ingredientes marcados na categoria, na ordem da lista."""
+    return [i["nome"] for i in INGREDIENTES_SALADA.get(categoria, [])
+            if st.session_state.get(_chave_check(categoria, i["nome"]), False)]
+
 def _salvar_salada():
     nome = st.session_state.get("salada_nome", "").strip()
-    combinacao = {c: list(st.session_state.get(f"salada_{c}", [])) for c in INGREDIENTES_SALADA}
+    combinacao = {c: _marcados(c) for c in INGREDIENTES_SALADA}
     if not nome:
         st.toast("Dê um nome para a combinação.", icon="⚠️")
         return
@@ -524,8 +527,9 @@ def _salvar_salada():
 
 def _carregar_salada(nome):
     combinacao = st.session_state.saladas_salvas.get(nome, {})
-    for categoria in INGREDIENTES_SALADA:
-        st.session_state[f"salada_{categoria}"] = list(combinacao.get(categoria, []))
+    for categoria, itens in INGREDIENTES_SALADA.items():
+        for item in itens:
+            st.session_state[_chave_check(categoria, item["nome"])] = item["nome"] in combinacao.get(categoria, [])
     st.session_state.salada_nome = nome
 
 def _excluir_salada(nome):
@@ -567,18 +571,21 @@ with tab_salada:
         with salada_cols[0]:
             for categoria, itens in INGREDIENTES_SALADA.items():
                 minimo, maximo, divide = REGRAS_SALADA.get(categoria, (0, len(itens), False))
-                por_nome = {i["nome"]: i for i in itens}
                 regra_txt = f"escolha {minimo}" if minimo == maximo else f"escolha {minimo} a {maximo}"
                 if divide:
                     regra_txt += "; com 2, meia porção de cada"
 
-                escolhidos = st.multiselect(
-                    f"**{categoria}** ({regra_txt})",
-                    options=list(por_nome.keys()),
-                    format_func=lambda n, d=por_nome: f"{n} — {d[n]['porcao']} (~{d[n]['kcal']:g} kcal)",
-                    max_selections=maximo,
-                    key=f"salada_{categoria}",
-                )
+                st.markdown(f"**{categoria}** ({regra_txt})")
+                # Com o limite atingido, as opções não marcadas ficam desabilitadas (cinza)
+                limite_atingido = len(_marcados(categoria)) >= maximo
+                for item in itens:
+                    chave = _chave_check(categoria, item["nome"])
+                    st.checkbox(
+                        f"{item['nome']} — {item['porcao']} (~{item['kcal']:g} kcal)",
+                        key=chave,
+                        disabled=limite_atingido and not st.session_state.get(chave, False),
+                    )
+                escolhidos = _marcados(categoria)
                 if len(escolhidos) < minimo:
                     pendencias.append(f"{categoria}: faltam {minimo - len(escolhidos)}")
                 combinacao_atual[categoria] = escolhidos
