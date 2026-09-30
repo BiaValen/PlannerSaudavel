@@ -197,6 +197,8 @@ REGRAS_SALADA = {
 # --- PRATO ---
 # TACO 4ª ed. (NEPA/Unicamp), valores por 100 g — extraída de github.com/raulfdm/taco-api (licença MIT)
 TACO_FILE = os.path.join(BASE_DIR, "banco de dados", "taco.csv")
+# Alimentos que não existem na TACO: USDA National Nutrient Database for Standard Reference, Release 28 (SR28)
+USDA_FILE = os.path.join(BASE_DIR, "banco de dados", "alimentos_usda.csv")
 PRATO_OPCOES_FILE = os.path.join(BASE_DIR, "banco de dados", "prato_opcoes.csv")
 ALIMENTOS_PERSONALIZADOS_FILE = os.path.join(BASE_DIR, "banco de dados", "alimentos_personalizados.csv")
 PRATOS_SALVOS_FILE = os.path.join(BASE_DIR, "banco de dados", "pratos_salvos.json")
@@ -347,9 +349,9 @@ def salvar_linhas_csv(linhas, filepath, colunas):
         writer.writerows(linhas)
 
 def carregar_alimentos():
-    """TACO + alimentos cadastrados pela usuária. Valores por 100 g. Chave: id (texto)."""
+    """TACO + USDA + alimentos cadastrados pela usuária. Valores por 100 g. Chave: id (texto)."""
     alimentos = {}
-    for arquivo, prefixo in ((TACO_FILE, ""), (ALIMENTOS_PERSONALIZADOS_FILE, "P")):
+    for arquivo, prefixo in ((TACO_FILE, ""), (USDA_FILE, "U"), (ALIMENTOS_PERSONALIZADOS_FILE, "P")):
         if not os.path.exists(arquivo):
             continue
         with open(arquivo, "r", encoding="utf-8") as f:
@@ -361,7 +363,8 @@ def carregar_alimentos():
                     "prot": float(row["Proteína (g)"]),
                     "carb": float(row["Carbo (g)"]),
                     "gord": float(row["Gordura (g)"]),
-                    "personalizado": bool(prefixo),
+                    "personalizado": prefixo == "P",
+                    "fonte": {"": "TACO", "U": "USDA", "P": "Cadastro"}[prefixo],
                     "gramas": float(row.get("Gramas") or 100),
                     "medida": row.get("Medida caseira", ""),
                 }
@@ -1128,7 +1131,7 @@ if pagina == PAGINA_PRATO:
         st.subheader("Monte seu prato")
         st.caption(
             "Baseado no almoço/jantar do seu plano alimentar. As quantidades já vêm do plano — ajuste os gramas "
-            "se quiser. Valores nutricionais da TACO. 🌱 = da época neste mês."
+            "se quiser. Valores nutricionais da TACO (os que não existem nela vêm da USDA). 🌱 = da época neste mês."
         )
         pendencias_prato = []
         for passo, espaco in enumerate(REGRAS_PRATO, start=1):
@@ -1160,6 +1163,8 @@ if pagina == PAGINA_PRATO:
                     kcal_padrao = nutrientes(alimento, o["gramas"])["kcal"]
                     selo = " 🌱" if eh_da_epoca(alimento["nome"], mes_atual) else ""
                     extra = f" · {o['medida']}" if o["medida"] else ""
+                    if alimento["fonte"] == "USDA":
+                        extra += " · *fonte: USDA*"
                     linha[0].checkbox(
                         f"{alimento['nome']}{selo}  ·  {o['gramas']:g} g{extra}  ·  **{kcal_padrao:.0f} kcal**",
                         key=chk,
