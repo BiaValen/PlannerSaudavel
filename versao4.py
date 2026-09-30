@@ -418,34 +418,55 @@ with tab_planner:
 
 
 # --- ABA: MONTE SUA SALADA ---
+# Regra de montagem: (mín. de opções, máx. de opções, divide a porção quando escolher mais de uma)
+REGRAS_SALADA = {
+    "Base": (1, 2, True),
+    "Proteína": (1, 1, False),
+    "Carbo Complexo": (1, 2, True),
+    "Vegetal Extra": (2, 2, False),
+    "Molho / Gordura": (1, 1, False),
+}
+META_KCAL_MIN, META_KCAL_MAX = 350, 450
+
 with tab_salada:
     st.subheader("🥗 Monte sua Salada")
-    st.caption("Escolha os ingredientes de cada categoria e ajuste a quantidade de porções. Os totais são calculados automaticamente.")
+    st.caption(
+        "Regra do pote: 1–2 Bases (dividem os 100g) + 1 Proteína + 1 Carbo (ou 2 com meia porção cada) "
+        f"+ 2 Vegetais + 1 Molho/Gordura. Meta: {META_KCAL_MIN}–{META_KCAL_MAX} kcal."
+    )
 
     ingredientes_salada = carregar_ingredientes_salada(SALADA_FILE)
     if not ingredientes_salada:
         st.error("Arquivo de ingredientes da salada não encontrado.")
     else:
         itens_escolhidos = []
+        pendencias = []
         salada_cols = st.columns([2, 1.5])
 
         with salada_cols[0]:
             for categoria, itens in ingredientes_salada.items():
+                minimo, maximo, divide = REGRAS_SALADA.get(categoria, (0, len(itens), False))
                 por_nome = {i["nome"]: i for i in itens}
+                if maximo == minimo:
+                    regra_txt = f"escolha {minimo}"
+                else:
+                    regra_txt = f"escolha {minimo} a {maximo}"
+                if divide:
+                    regra_txt += "; com 2, meia porção de cada"
+
                 escolhidos = st.multiselect(
-                    f"**{categoria}**",
+                    f"**{categoria}** ({regra_txt})",
                     options=list(por_nome.keys()),
                     format_func=lambda n, d=por_nome: f"{n} — {d[n]['porcao']} (~{d[n]['kcal']:g} kcal)",
+                    max_selections=maximo,
                     key=f"salada_{categoria}",
                 )
+                if len(escolhidos) < minimo:
+                    pendencias.append(f"{categoria}: faltam {minimo - len(escolhidos)}")
+
+                fator = 1 / len(escolhidos) if (divide and escolhidos) else 1
                 for nome in escolhidos:
-                    item = por_nome[nome]
-                    qtd = st.number_input(
-                        f"Porções de {nome} ({item['porcao']})",
-                        min_value=0.5, max_value=10.0, value=1.0, step=0.5,
-                        key=f"salada_qtd_{categoria}_{nome}",
-                    )
-                    itens_escolhidos.append((categoria, item, qtd))
+                    itens_escolhidos.append((categoria, por_nome[nome], fator))
 
         with salada_cols[1]:
             st.markdown("#### 📊 Totais da sua salada")
@@ -461,13 +482,22 @@ with tab_salada:
             m3.metric("Carbo", f"{total_carb:.0f} g")
             m4.metric("Gordura", f"{total_gord:.0f} g")
 
+            if pendencias:
+                st.info("Complete a salada: " + " · ".join(pendencias))
+            elif total_kcal > META_KCAL_MAX:
+                st.warning(f"Passou da meta ({total_kcal:.0f} kcal > {META_KCAL_MAX}). Troque por opções mais leves.")
+            elif total_kcal < META_KCAL_MIN:
+                st.warning(f"Abaixo da meta ({total_kcal:.0f} kcal < {META_KCAL_MIN}).")
+            else:
+                st.success(f"Dentro da meta de {META_KCAL_MIN}–{META_KCAL_MAX} kcal ✅")
+
             if itens_escolhidos:
                 st.markdown("#### 🧾 Ingredientes")
                 st.table([
                     {
                         "Categoria": cat,
                         "Ingrediente": i["nome"],
-                        "Qtd": f"{q:g} × {i['porcao']}",
+                        "Qtd": i["porcao"] if q == 1 else f"½ × {i['porcao']}",
                         "kcal": f"{i['kcal'] * q:.0f}",
                         "P (g)": f"{i['prot'] * q:.0f}",
                         "C (g)": f"{i['carb'] * q:.0f}",
@@ -475,5 +505,3 @@ with tab_salada:
                     }
                     for cat, i, q in itens_escolhidos
                 ])
-            else:
-                st.info("Selecione ingredientes ao lado para montar sua salada.")
