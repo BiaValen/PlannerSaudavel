@@ -540,7 +540,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🥑 Planner Saudável")
+def _texto_referencias():
+    """Todas as referências do app, mostradas no ícone de ajuda do título."""
+    usda = sorted(a["nome"] for a in ALIMENTOS.values() if a["fonte"] == "USDA")
+    planilha = [i["nome"] for itens in INGREDIENTES_SALADA.values() for i in itens if i["fonte"] == "Planilha original"]
+    linhas = [
+        "**Referências**",
+        f"- **Valores nutricionais:** {REF_TACO}.",
+        f"- **Alimentos que não existem na TACO:** {REF_USDA}" + (f" — {'; '.join(usda)}." if usda else "."),
+        f"- **Salada, itens sem equivalente na TACO** (valores da sua planilha original): {'; '.join(planilha)}." if planilha else "",
+        f"- **Regras do prato e metas por refeição:** {REF_PLANO} (~30 g de carboidratos, ~24 g de proteínas e ~6 g de gorduras por refeição).",
+        f"- **Proporção do prato:** {REF_WEBDIET_PRATO} (50% folhas e vegetais + 15% legumes, 25% proteína, 10% carboidrato).",
+        f"- **Selo 🌱:** {REF_WEBDIET_EPOCA}.",
+    ]
+    return "\n".join(l for l in linhas if l)
+
+st.title("🥑 Planner Saudável", help=_texto_referencias())
 st.caption("Monte suas saladas, planeje a semana e gere a lista de compras.")
 
 def _refeicao_atual(dia, categoria):
@@ -763,14 +778,6 @@ def _adicionar_ao_planner(nome, chave, prefixo=PREFIXO_SALADA):
     st.session_state.sincronizar_planner = True
     st.toast(f"'{nome}' colocado em {dia} – {categoria}. Lembre de salvar o plano.", icon="🗓️")
 
-def _ajuda_fonte_salada(fonte):
-    """Texto do ⓘ de cada ingrediente da salada."""
-    if fonte.startswith("TACO"):
-        return f"Fonte: {REF_TACO}. Alimento usado: {fonte.removeprefix('TACO 4ª ed. ').strip('()')}."
-    if fonte == "Planilha original":
-        return "Fonte: valores da sua planilha original (sem equivalente na TACO)."
-    return f"Fonte: {fonte}." if fonte else None
-
 def _totais(itens):
     return {k: sum(i[k] * q for _, i, q in itens) for k in ("kcal", "prot", "carb", "gord")}
 
@@ -800,11 +807,7 @@ if pagina == PAGINA_SALADA:
         salada_cols = st.columns([1.6, 1], gap="large")
 
         with salada_cols[0]:
-            st.subheader(
-                "Monte sua salada em 5 passos",
-                help=f"Referências: {REF_TACO}; para os itens sem equivalente na TACO, sua planilha original. "
-                     "Passe o mouse no ⓘ de cada ingrediente para ver a fonte dele.",
-            )
+            st.subheader("Monte sua salada em 5 passos")
             st.caption("Marque os ingredientes de cada passo. Quando o limite é atingido, as outras opções ficam cinza.")
             for passo, (categoria, itens) in enumerate(INGREDIENTES_SALADA.items(), start=1):
                 minimo, maximo, divide = REGRAS_SALADA.get(categoria, (0, len(itens), False))
@@ -831,7 +834,6 @@ if pagina == PAGINA_SALADA:
                             f"{item['nome']}  ·  {item['porcao']}  ·  **{item['kcal']:g} kcal**",
                             key=chave,
                             disabled=limite_atingido and not st.session_state.get(chave, False),
-                            help=_ajuda_fonte_salada(item["fonte"]),
                         )
                 escolhidos = _marcados(categoria)
                 if len(escolhidos) < minimo:
@@ -1140,15 +1142,6 @@ def _excluir_alimento(id_):
     st.session_state.sincronizar_planner = True
     st.toast("Alimento excluído.", icon="🗑️")
 
-def _ajuda_fonte_alimento(id_):
-    """Texto do ⓘ de cada alimento do prato."""
-    a = ALIMENTOS[id_]
-    if a["fonte"] == "TACO":
-        return f"Fonte: {REF_TACO}. Alimento: “{a['nome']}” (nº {id_})."
-    if a["fonte"] == "USDA":
-        return f"Fonte: {REF_USDA}. Alimento nº {id_[1:]}: {a['descricao_usda']}."
-    return "Fonte: alimento cadastrado por você."
-
 def _nome_item(id_):
     alimento = ALIMENTOS.get(id_)
     return alimento["nome"] if alimento else "(alimento excluído)"
@@ -1158,11 +1151,7 @@ if pagina == PAGINA_PRATO:
     prato_cols = st.columns([1.6, 1], gap="large")
 
     with prato_cols[0]:
-        st.subheader(
-            "Monte seu prato",
-            help=f"Referências: {REF_PLANO}; valores nutricionais: {REF_TACO} e, para o que não existe nela, "
-                 f"{REF_USDA}; selo 🌱: {REF_WEBDIET_EPOCA}. Passe o mouse no ⓘ de cada alimento para ver a fonte dele.",
-        )
+        st.subheader("Monte seu prato")
         st.caption(
             "Baseado no almoço/jantar do seu plano alimentar. As quantidades já vêm do plano — ajuste os gramas "
             "se quiser. Valores nutricionais da TACO (os que não existem nela vêm da USDA). 🌱 = da época neste mês."
@@ -1203,7 +1192,6 @@ if pagina == PAGINA_PRATO:
                         f"{alimento['nome']}{selo}  ·  {o['gramas']:g} g{extra}  ·  **{kcal_padrao:.0f} kcal**",
                         key=chk,
                         disabled=limite_atingido and not marcado,
-                        help=_ajuda_fonte_alimento(o["id"]),
                     )
                     if marcado:
                         chave_g = _g_prato(espaco, o["id"])
@@ -1253,10 +1241,7 @@ if pagina == PAGINA_PRATO:
             m3.metric("Gordura", f"{t['gord']:.0f} g")
 
             if itens_prato:
-                st.markdown(
-                    "**Referência do seu plano por refeição**",
-                    help=f"{REF_PLANO}: ~30 g de carboidratos, ~24 g de proteínas e ~6 g de gorduras por refeição (5 refeições por dia).",
-                )
+                st.markdown("**Referência do seu plano por refeição**")
                 for chave, rotulo in (("carb", "Carbo"), ("prot", "Proteína"), ("gord", "Gordura")):
                     meta = META_REFEICAO[chave]
                     st.progress(min(t[chave] / meta, 1.0), text=f"{rotulo}: {t[chave]:.0f} g de ~{meta} g")
@@ -1265,11 +1250,7 @@ if pagina == PAGINA_PRATO:
                 peso = {e: sum(i["gramas"] for i in itens_prato if i["espaco"] == e) for e in PROPORCAO_PRATO}
                 peso_total = sum(peso.values())
                 if peso_total:
-                    st.markdown(
-                        "**Proporção do prato** (pelo peso)",
-                        help=f"{REF_WEBDIET_PRATO}: 50% folhas e vegetais + 15% legumes (aqui somados em Vegetais), "
-                             "25% proteína e 10% grãos ou fonte de carboidrato.",
-                    )
+                    st.markdown("**Proporção do prato** (pelo peso)")
                     st.markdown("\n".join(
                         f"- {e}: **{peso[e] / peso_total:.0%}** (ideal ~{ideal}%)"
                         for e, ideal in PROPORCAO_PRATO.items()
