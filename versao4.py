@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime
 import copy
 import re
+import pandas as pd
 from fpdf import FPDF
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
@@ -221,6 +222,25 @@ def format_label(meal_name):
 def parse_label(formatted_label):
     """Extrai o nome original da refeição do label formatado."""
     return re.sub(r'\s\(~\d+\s+kcal\)$', '', formatted_label)
+COLUNAS_SALADA = ["Categoria", "Ingrediente", "Porção", "Calorias (kcal)", "Proteína (g)", "Carbo (g)", "Gordura (g)", "Fonte"]
+
+def carregar_linhas_salada(filepath):
+    """Lê o CSV de ingredientes da salada como lista de linhas (para o editor)."""
+    if not os.path.exists(filepath):
+        return []
+    with open(filepath, "r", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+def salvar_linhas_salada(linhas, filepath):
+    with open(filepath, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=COLUNAS_SALADA, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(linhas)
+
+def _texto(valor):
+    """Converte célula do editor em texto (vazio para None/NaN)."""
+    return "" if valor is None or pd.isna(valor) else str(valor).strip()
+
 def carregar_ingredientes_salada(filepath):
     """Lê o CSV de ingredientes da salada e agrupa por categoria (mantendo a ordem do arquivo)."""
     categorias = {}
@@ -314,6 +334,25 @@ if 'saladas_salvas' not in st.session_state:
     st.session_state.saladas_salvas = carregar_dados(SALADAS_SALVAS_FILE)
 
 INGREDIENTES_SALADA = carregar_ingredientes_salada(SALADA_FILE)
+
+def _limpar_widgets_planner(refeicao):
+    """Força os selectbox do planner que usam essa refeição a serem recriados (o rótulo de kcal pode ter mudado)."""
+    for dia, categorias in st.session_state.selecoes.items():
+        if isinstance(categorias, dict):
+            for categoria, selecao in categorias.items():
+                if isinstance(selecao, dict) and selecao.get('meal') == refeicao:
+                    st.session_state.pop(f"{dia}_{categoria}_meal", None)
+
+# Depois de editar a lista de ingredientes: tira das seleções o que não existe mais
+# e atualiza as saladas no planner (as calorias podem ter mudado)
+if st.session_state.pop("ingredientes_alterados", False):
+    for _categoria in REGRAS_SALADA:
+        _chave = f"salada_{_categoria}"
+        if _chave in st.session_state:
+            _validos = {i["nome"] for i in INGREDIENTES_SALADA.get(_categoria, [])}
+            st.session_state[_chave] = [n for n in st.session_state[_chave] if n in _validos]
+    for _nome in st.session_state.saladas_salvas:
+        _limpar_widgets_planner(PREFIXO_SALADA + _nome)
 # As saladas salvas viram refeições: aparecem no planner e entram na lista de compras
 for _nome, _combinacao in st.session_state.saladas_salvas.items():
     REFEICOES_COM_DETALHES[PREFIXO_SALADA + _nome] = salada_para_refeicao(
@@ -460,14 +499,6 @@ with tab_planner:
 
 
 # --- ABA: MONTE SUA SALADA ---
-def _limpar_widgets_planner(refeicao):
-    """Força os selectbox do planner que usam essa refeição a serem recriados (o rótulo de kcal pode ter mudado)."""
-    for dia, categorias in st.session_state.selecoes.items():
-        if isinstance(categorias, dict):
-            for categoria, selecao in categorias.items():
-                if isinstance(selecao, dict) and selecao.get('meal') == refeicao:
-                    st.session_state.pop(f"{dia}_{categoria}_meal", None)
-
 def _salvar_salada():
     nome = st.session_state.get("salada_nome", "").strip()
     combinacao = {c: list(st.session_state.get(f"salada_{c}", [])) for c in INGREDIENTES_SALADA}
@@ -586,6 +617,12 @@ with tab_salada:
             itens_salvos = itens_da_combinacao(combinacao, INGREDIENTES_SALADA)
             ts = _totais(itens_salvos)
             with st.expander(f"{PREFIXO_SALADA}{nome} — {ts['kcal']:.0f} kcal · P {ts['prot']:.0f}g · C {ts['carb']:.0f}g · G {ts['gord']:.0f}g"):
+                faltando = [
+                    n for c, nomes in combinacao.items() for n in nomes
+                    if n not in {i["nome"] for i in INGREDIENTES_SALADA.get(c, [])}
+                ]
+                if faltando:
+                    st.warning("Ingredientes que não existem mais na lista (ignorados no cálculo): " + ", ".join(faltando))
                 st.markdown("\n".join(
                     f"- **{cat}:** {i['nome']} ({i['porcao'] if q == 1 else '½ × ' + i['porcao']})"
                     for cat, i, q in itens_salvos
@@ -597,3 +634,81 @@ with tab_salada:
                 acoes[2].button("🗓️ Pôr na semana", key=f"{chave}_add", on_click=_adicionar_ao_planner, args=(nome, chave))
                 acoes[3].button("✏️ Carregar", key=f"{chave}_load", on_click=_carregar_salada, args=(nome,))
                 acoes[4].button("🗑️ Excluir", key=f"{chave}_del", on_click=_excluir_salada, args=(nome,))
+
+    # --- GERENCIAR INGREDIENTES ---
+    st.markdown("---")
+    with st.expander("⚙️ Gerenciar ingredientes (adicionar, editar ou excluir)"):
+        st.caption(
+            "Edite direto na tabela. Para adicionar, use a última linha vazia; para excluir, "
+            "marque a linha à esquerda e aperte a lixeira. Depois clique em **Salvar ingredientes**."
+        )
+        linhas_originais = carregar_linhas_salada(SALADA_FILE)
+        df_original = pd.DataFrame(linhas_originais, columns=COLUNAS_SALADA)
+        campos_num = ["Calorias (kcal)", "Proteína (g)", "Carbo (g)", "Gordura (g)"]
+        for col in campos_num:
+            df_original[col] = pd.to_numeric(df_original[col], errors="coerce")
+
+        if "ingredientes_versao" not in st.session_state:
+            st.session_state.ingredientes_versao = 0
+        df_editado = st.data_editor(
+            df_original,
+            num_rows="dynamic",
+            use_container_width=True,
+            hide_index=True,
+            key=f"editor_ingredientes_{st.session_state.ingredientes_versao}",
+            column_config={
+                "Categoria": st.column_config.SelectboxColumn(options=list(REGRAS_SALADA.keys()), required=True),
+                "Ingrediente": st.column_config.TextColumn(required=True),
+                "Porção": st.column_config.TextColumn(required=True, help="Ex.: 100g, 2 unidades, 1 col. sopa"),
+                **{c: st.column_config.NumberColumn(min_value=0.0, step=0.1, required=True) for c in campos_num},
+                "Fonte": st.column_config.TextColumn(disabled=True, help="Preenchida automaticamente"),
+            },
+        )
+
+        if st.button("💾 Salvar ingredientes", type="primary"):
+            erros = []
+            novas_linhas = []
+            vistos = set()
+            ordem = {c: n for n, c in enumerate(REGRAS_SALADA)}
+            for idx, row in df_editado.iterrows():
+                categoria = _texto(row["Categoria"])
+                nome = _texto(row["Ingrediente"])
+                porcao = _texto(row["Porção"])
+                if not categoria and not nome:
+                    continue  # linha vazia
+                if categoria not in REGRAS_SALADA or not nome or not porcao or any(pd.isna(row[c]) for c in campos_num):
+                    erros.append(f"Linha '{nome or '(sem nome)'}': preencha categoria, ingrediente, porção e os 4 valores.")
+                    continue
+                if (categoria, nome.lower()) in vistos:
+                    erros.append(f"'{nome}' aparece duas vezes em {categoria}.")
+                    continue
+                vistos.add((categoria, nome.lower()))
+
+                linha = {
+                    "Categoria": categoria,
+                    "Ingrediente": nome,
+                    "Porção": porcao,
+                    **{c: f"{float(row[c]):g}" for c in campos_num},
+                }
+                original = df_original.loc[idx] if idx in df_original.index else None
+                if original is None:
+                    linha["Fonte"] = "Adicionado pelo usuário"
+                else:
+                    mudou = (
+                        original["Categoria"] != categoria or original["Ingrediente"] != nome
+                        or original["Porção"] != porcao
+                        or any(float(original[c]) != float(row[c]) for c in campos_num)
+                    )
+                    linha["Fonte"] = "Editado pelo usuário" if mudou else _texto(original["Fonte"])
+                novas_linhas.append(linha)
+
+            if erros:
+                for e in erros:
+                    st.error(e)
+            else:
+                novas_linhas.sort(key=lambda l: ordem[l["Categoria"]])
+                salvar_linhas_salada(novas_linhas, SALADA_FILE)
+                st.session_state.ingredientes_versao += 1
+                st.session_state.ingredientes_alterados = True
+                st.toast("Ingredientes salvos!", icon="✅")
+                st.rerun()
