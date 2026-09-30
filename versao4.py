@@ -335,13 +335,19 @@ if 'saladas_salvas' not in st.session_state:
 
 INGREDIENTES_SALADA = carregar_ingredientes_salada(SALADA_FILE)
 
-def _limpar_widgets_planner(refeicao):
-    """Força os selectbox do planner que usam essa refeição a serem recriados (o rótulo de kcal pode ter mudado)."""
+def _sincronizar_planner():
+    """Faz os selectbox do planner mostrarem o que está em selecoes (usado quando a seleção muda fora do planner
+    ou quando as calorias de uma salada mudam). Precisa rodar antes de os selectbox serem criados."""
     for dia, categorias in st.session_state.selecoes.items():
-        if isinstance(categorias, dict):
-            for categoria, selecao in categorias.items():
-                if isinstance(selecao, dict) and selecao.get('meal') == refeicao:
-                    st.session_state.pop(f"{dia}_{categoria}_meal", None)
+        if not isinstance(categorias, dict):
+            continue
+        for categoria, selecao in categorias.items():
+            chave = f"{dia}_{categoria}_meal"
+            if not isinstance(selecao, dict) or chave not in st.session_state:
+                continue
+            refeicao = selecao.get('meal', "Nenhuma")
+            if refeicao == "Nenhuma" or refeicao in REFEICOES_COM_DETALHES:
+                st.session_state[chave] = format_label(refeicao)
 
 # Depois de editar a lista de ingredientes: tira das seleções o que não existe mais
 # e atualiza as saladas no planner (as calorias podem ter mudado)
@@ -351,13 +357,16 @@ if st.session_state.pop("ingredientes_alterados", False):
         if _chave in st.session_state:
             _validos = {i["nome"] for i in INGREDIENTES_SALADA.get(_categoria, [])}
             st.session_state[_chave] = [n for n in st.session_state[_chave] if n in _validos]
-    for _nome in st.session_state.saladas_salvas:
-        _limpar_widgets_planner(PREFIXO_SALADA + _nome)
+    st.session_state.sincronizar_planner = True
+
 # As saladas salvas viram refeições: aparecem no planner e entram na lista de compras
 for _nome, _combinacao in st.session_state.saladas_salvas.items():
     REFEICOES_COM_DETALHES[PREFIXO_SALADA + _nome] = salada_para_refeicao(
         itens_da_combinacao(_combinacao, INGREDIENTES_SALADA)
     )
+
+if st.session_state.pop("sincronizar_planner", False):
+    _sincronizar_planner()
 
 # --- INTERFACE ---
 st.title("🥑 Planner Alimentar Inteligente")
@@ -435,7 +444,7 @@ with tab_planner:
                         escolha_formatada = st.selectbox(
                             f"sel_{dia}_{categoria}",
                             options=opcoes_formatadas,
-                            index=index_selecao,
+                            index=index_selecao if f"{dia}_{categoria}_meal" not in st.session_state else 0,
                             key=f"{dia}_{categoria}_meal",
                             label_visibility="collapsed"
                         )
@@ -510,7 +519,7 @@ def _salvar_salada():
         return
     st.session_state.saladas_salvas[nome] = combinacao
     salvar_dados(st.session_state.saladas_salvas, SALADAS_SALVAS_FILE)
-    _limpar_widgets_planner(PREFIXO_SALADA + nome)
+    st.session_state.sincronizar_planner = True
     st.toast(f"Salada '{nome}' salva!", icon="✅")
 
 def _carregar_salada(nome):
@@ -523,7 +532,7 @@ def _excluir_salada(nome):
     st.session_state.saladas_salvas.pop(nome, None)
     salvar_dados(st.session_state.saladas_salvas, SALADAS_SALVAS_FILE)
     refeicao = PREFIXO_SALADA + nome
-    _limpar_widgets_planner(refeicao)
+    st.session_state.sincronizar_planner = True
     for categorias in st.session_state.selecoes.values():
         if isinstance(categorias, dict):
             for selecao in categorias.values():
@@ -535,7 +544,7 @@ def _adicionar_ao_planner(nome, chave):
     dia = st.session_state[f"{chave}_dia"]
     categoria = st.session_state[f"{chave}_refeicao"]
     st.session_state.selecoes.setdefault(dia, {}).setdefault(categoria, {})['meal'] = PREFIXO_SALADA + nome
-    st.session_state.pop(f"{dia}_{categoria}_meal", None)
+    st.session_state.sincronizar_planner = True
     st.toast(f"'{nome}' colocada em {dia} – {categoria}. Lembre de salvar o plano.", icon="🗓️")
 
 def _totais(itens):
