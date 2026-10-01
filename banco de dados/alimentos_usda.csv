@@ -1,0 +1,8 @@
+id,Alimento,Grupo,Calorias (kcal),Proteína (g),Carbo (g),Gordura (g),Descrição USDA
+20121,"Macarrão, trigo, cozido",Cereais e derivados,158,5.80,30.86,0.93,"PASTA,CKD,ENR,WO/ ADDED SALT"
+16057,"Grão-de-bico, cozido",Leguminosas e derivados,164,8.86,27.42,2.59,"CHICKPEAS ,MATURE SEEDS,CKD,BLD,WO/SALT"
+11363,"Batata, inglesa, assada","Verduras, hortaliças e derivados",93,1.96,21.55,0.10,"POTATOES,BKD,FLESH,WO/SALT"
+11657,"Purê de batata, com leite integral","Verduras, hortaliças e derivados",83,1.91,17.57,0.57,"POTATOES,MSHD,HOME-PREPARED,WHL MILK ADDED"
+13454,"Carne, bovina, alcatra, magra, grelhada",Carnes e derivados,183,30.55,0.00,5.79,"BEEF,TOP SIRLOIN,STEAK,LN,0"" FAT,ALL GRDS,CKD,BRLD"
+15121,"Atum, em água, drenado",Pescados e frutos do mar,86,19.44,0.00,0.96,"FISH,TUNA,LT,CND IN H2O,DRND SOL"
+10061,"Porco, filé mignon, magro, assado",Carnes e derivados,143,26.17,0.00,3.51,"PORK,FRSH,LOIN,TENDERLOIN,LN,CKD,RSTD"
