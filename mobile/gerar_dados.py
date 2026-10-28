@@ -1,7 +1,11 @@
 """Gera mobile/dados.js a partir do versao4.py e dos CSVs em "banco de dados/".
 
 Assim a versão para celular usa exatamente os mesmos alimentos, regras e valores
-nutricionais da versão Streamlit. Rode de novo sempre que mudar algum desses dados:
+nutricionais da versão Streamlit. O plano alimentar pessoal (meu_plano.json) NÃO entra
+aqui, porque este arquivo é publicado; vai só o plano_exemplo.json. O pessoal é carregado
+no celular pelo botão de backup e fica salvo só no aparelho.
+
+Rode de novo sempre que mudar algum desses dados:
 
     python mobile/gerar_dados.py
 """
@@ -14,9 +18,9 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DADOS = os.path.join(RAIZ, "banco de dados")
 
 CONSTANTES = [
-    "REFEICOES_COM_DETALHES", "REFEICOES_BASE", "REGRAS_SALADA", "REGRAS_PRATO", "DESCRICAO_PRATO",
+    "REFEICOES_COM_DETALHES", "REFEICOES_BASE", "REGRAS_SALADA",
     "REF_TACO", "REF_USDA", "REF_PLANO", "REF_WEBDIET_PRATO", "REF_WEBDIET_EPOCA",
-    "META_VEGETAIS_G", "META_REFEICAO", "PROPORCAO_PRATO", "GRUPOS_TACO_PRATO", "DA_EPOCA",
+    "PROPORCAO_PRATO", "GRUPOS_TACO_PRATO", "DA_EPOCA",
     "SHOPPING_LIST_EXCLUSIONS", "DIAS_SEMANA",
 ]
 
@@ -57,12 +61,8 @@ def main():
                 "carb": numero(r["Carbo (g)"]), "gord": numero(r["Gordura (g)"]),
             }
 
-    opcoes_prato = {e: [] for e in c["REGRAS_PRATO"]}
-    for r in ler_csv("prato_opcoes.csv"):
-        if r["id"] in alimentos:
-            opcoes_prato[r["Espaço"]].append(
-                {"id": r["id"], "gramas": numero(r["Gramas"]), "medida": r["Medida caseira"]}
-            )
+    with open(os.path.join(DADOS, "plano_exemplo.json"), encoding="utf-8") as f:
+        plano_exemplo = json.load(f)
 
     salada = {}
     for r in ler_csv("ingredientes_salada.csv"):
@@ -78,11 +78,8 @@ def main():
         "detalhes": c["REFEICOES_COM_DETALHES"],
         "exclusoesCompras": c["SHOPPING_LIST_EXCLUSIONS"],
         "salada": {"ingredientes": salada, "regras": c["REGRAS_SALADA"]},
-        "prato": {
-            "regras": c["REGRAS_PRATO"], "descricao": c["DESCRICAO_PRATO"], "opcoes": opcoes_prato,
-            "metaVegetais": c["META_VEGETAIS_G"], "metaRefeicao": c["META_REFEICAO"],
-            "proporcao": c["PROPORCAO_PRATO"], "gruposTaco": c["GRUPOS_TACO_PRATO"],
-        },
+        "prato": {"proporcao": c["PROPORCAO_PRATO"], "gruposTaco": c["GRUPOS_TACO_PRATO"]},
+        "planoExemplo": plano_exemplo,
         "alimentos": alimentos,
         "daEpoca": c["DA_EPOCA"],
         "referencias": {k: c[k] for k in ("REF_TACO", "REF_USDA", "REF_PLANO", "REF_WEBDIET_PRATO", "REF_WEBDIET_EPOCA")},

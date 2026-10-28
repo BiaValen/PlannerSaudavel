@@ -147,7 +147,7 @@ h3 { font-size: 1rem; }
 .barra.acima > div { background: var(--laranja); }
 
 /* Água */
-.copos { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.copos { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .copo {
   height: 44px; padding: 0; border-radius: 10px; border: 1px solid var(--borda); background: var(--fundo);
   font-size: 1.2rem; cursor: pointer; filter: grayscale(1); opacity: .5;

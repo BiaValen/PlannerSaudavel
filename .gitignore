@@ -1,0 +1,15 @@
+# Dados pessoais: ficam só no seu computador, fora do GitHub
+banco de dados/meu_plano.json
+banco de dados/planner_final_selecoes.json
+banco de dados/planner_data.json
+planner_final_selecoes.json
+banco de dados/saladas_salvas.json
+banco de dados/pratos_salvos.json
+banco de dados/alimentos_personalizados.csv
+banco de dados/medidas.csv
+banco de dados/bioimpedancia.csv
+banco de dados/refeicoes_personalizadas_final.json
+
+# Arquivos gerados e ambiente local
+__pycache__/
+.venv/

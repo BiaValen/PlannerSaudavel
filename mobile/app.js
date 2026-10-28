@@ -8,7 +8,7 @@ const CHAVE = "plannerSaudavel.v1";
 const PREFIXO_SALADA = "🥗 ";
 const PREFIXO_PRATO = "🍽️ ";
 const REFEICOES = Object.keys(D.refeicoes);
-const ESPACOS = Object.keys(D.prato.regras);
+const ESPACOS = Object.keys(D.prato.gruposTaco);
 const CATEGORIAS_SALADA = Object.keys(D.salada.ingredientes);
 const CAMPOS_MEDIDAS = [
   ["peso", "Peso", "kg"], ["braco", "Braço direito", "cm"], ["costas", "Costas", "cm"],
@@ -38,6 +38,7 @@ function estadoInicial() {
     medidas: [],            // [{data, peso, braco, ...}]
     bio: [],                // [{data, peso, imc, ..., tipo}]
     rascunho: { salada: {}, prato: {}, extras: {} },
+    plano: null,            // plano alimentar carregado de meu_plano.json (fica só no aparelho)
   };
 }
 let armazenamentoOk = true;
@@ -54,6 +55,13 @@ try { navigator.storage?.persist?.(); } catch (e) {}
 function salvar() {
   try { localStorage.setItem(CHAVE, JSON.stringify(S)); armazenamentoOk = true; }
   catch (e) { armazenamentoOk = false; }
+}
+
+// Plano alimentar em uso: o que você carregou no aparelho (💾) ou o de exemplo, genérico
+const plano = () => S.plano || D.planoExemplo;
+function planoValido(p) {
+  return p && typeof p === "object" && p.regras && p.opcoes && p.descricao
+    && ESPACOS.every((e) => Array.isArray(p.regras[e]) && Array.isArray(p.opcoes[e]));
 }
 
 // Estado só da tela (não é salvo)
@@ -327,12 +335,15 @@ function telaSemana() {
   const dia = UI.dia;
   const kcal = kcalDia(dia);
   const copos = S.agua[dia] || 0;
+  const litros = plano().aguaLitros || 2;
+  const totalCopos = Math.round(litros / 0.25);
+  const metaKcal = plano().metaDiaKcal;
   return [
     h("div", { class: "chips" }, D.dias.map((d) => h("button", {
       class: "chip" + (d === dia ? " ativo" : ""), onclick: () => { UI.dia = d; render(); },
     }, d.slice(0, 3), d === D.dias[(hoje.getDay() + 6) % 7] ? h("span", { class: "ponto" }, " •") : null))),
     h("div", { class: "cartao" },
-      h("div", { class: "linha entre" }, h("h2", {}, dia), h("span", { class: "selo" }, `${fmt(kcal)} kcal`)),
+      h("div", { class: "linha entre" }, h("h2", {}, dia), h("span", { class: "selo" }, metaKcal ? `${fmt(kcal)} de ~${fmt(metaKcal)} kcal` : `${fmt(kcal)} kcal`)),
       REFEICOES.map((ref) => {
         const sel = selecao(dia, ref);
         const opcoes = opcoesRefeicao(ref);
@@ -348,12 +359,12 @@ function telaSemana() {
               [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `👤${n}`)))));
       })),
     h("div", { class: "cartao" },
-      h("div", { class: "linha entre" }, h("h3", {}, "💧 Hidratação"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de 2,00 L`)),
-      h("div", { class: "copos" }, Array.from({ length: 8 }, (_, i) => h("button", {
+      h("div", { class: "linha entre" }, h("h3", {}, "💧 Hidratação"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de ${fmt(litros, 2)} L`)),
+      h("div", { class: "copos", style: `grid-template-columns:repeat(${totalCopos <= 8 ? totalCopos : 7},1fr)` }, Array.from({ length: totalCopos }, (_, i) => h("button", {
         class: "copo" + (i < copos ? " cheio" : ""), "aria-label": `Copo ${i + 1}`,
         onclick: () => { S.agua[dia] = i < copos && i === copos - 1 ? i : i + 1; atualizar(); },
       }, "🥛"))),
-      barra(copos, 8)),
+      barra(copos, totalCopos)),
     h("button", { class: "btn primario bloco", onclick: () => abrirModal(modalCompras) }, "🛒 Lista de compras da semana"),
   ];
 }
@@ -442,7 +453,7 @@ function telaSalada() {
 
 /* ---------- Tela: Prato ---------- */
 function opcoesEspaco(espaco) {
-  const opcoes = [...D.prato.opcoes[espaco]];
+  const opcoes = [...(plano().opcoes[espaco] || [])].filter((o) => alimento(o.id));
   for (const [id, a] of Object.entries(S.personalizados)) if (a.grupo === espaco) opcoes.push({ id, gramas: a.gramas, medida: a.medida || "" });
   for (const id of S.rascunho.extras[espaco] || []) {
     if (alimento(id) && !opcoes.some((o) => o.id === id)) opcoes.push({ id, gramas: 100, medida: "" });
@@ -456,10 +467,12 @@ function telaPrato() {
   const P = S.rascunho.prato;
   const itens = itensPrato();
   const t = totaisPrato(itens);
-  const meta = D.prato.metaRefeicao;
+  const P0 = plano();
+  const meta = P0.metaRefeicao;
+  const metaVeg = P0.metaVegetais;
   const pendencias = [];
   const passos = ESPACOS.map((espaco, i) => {
-    const [minimo, maximo] = D.prato.regras[espaco];
+    const [minimo, maximo] = P0.regras[espaco];
     P[espaco] ??= {};
     const marcados = P[espaco];
     const qtd = Object.keys(marcados).length;
@@ -474,9 +487,9 @@ function telaPrato() {
       .slice(0, 8) : [];
     return h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, h("h3", {}, `${i + 1}. ${espaco}`),
-        h("span", { class: "selo" + ((ehVeg ? gVeg >= D.prato.metaVegetais : qtd >= minimo) ? "" : " pendente") },
-          ehVeg ? `${fmt(gVeg)}/${D.prato.metaVegetais} g` : `${qtd}/${maximo}`)),
-      h("div", { class: "suave" }, D.prato.descricao[espaco]),
+        h("span", { class: "selo" + ((ehVeg && metaVeg ? gVeg >= metaVeg : qtd >= minimo) ? "" : " pendente") },
+          ehVeg ? (metaVeg ? `${fmt(gVeg)}/${metaVeg} g` : `${fmt(gVeg)} g`) : `${qtd}/${maximo}`)),
+      h("div", { class: "suave" }, P0.descricao[espaco]),
       opcoesEspaco(espaco).map((o) => {
         const a = alimento(o.id);
         const marcado = o.id in marcados;
@@ -493,11 +506,11 @@ function telaPrato() {
             "aria-label": "Gramas", onchange: (e) => { marcados[o.id] = Number(e.target.value) || 0; atualizar(); } })
             : h("span", { class: "kcal" }, `${fmt(nutr(a, o.gramas).kcal)} kcal`));
       }),
-      ehVeg && qtd ? [barra(gVeg, D.prato.metaVegetais),
+      ehVeg && qtd && metaVeg ? [barra(gVeg, metaVeg),
         h("button", { class: "btn bloco", onclick: () => {
-          for (const id of Object.keys(marcados)) marcados[id] = Math.round(D.prato.metaVegetais / qtd);
+          for (const id of Object.keys(marcados)) marcados[id] = Math.round(metaVeg / qtd);
           atualizar();
-        } }, `Dividir ${D.prato.metaVegetais} g igualmente`)] : null,
+        } }, `Dividir ${metaVeg} g igualmente`)] : null,
       h("input", { class: "entrada", style: "margin-top:10px", type: "search", placeholder: "🔎 Buscar outro alimento na TACO…",
         value: UI.busca["prato_" + espaco] || "",
         oninput: (e) => { UI.busca["prato_" + espaco] = e.target.value; renderMantendoFoco(e.target); } }),
@@ -513,7 +526,10 @@ function telaPrato() {
   const peso = Object.fromEntries(Object.keys(D.prato.proporcao).map((e) => [e, itens.filter((i) => i.espaco === e).reduce((s, i) => s + i.gramas, 0)]));
   const pesoTotal = Object.values(peso).reduce((s, g) => s + g, 0);
   return [
-    h("p", { class: "suave" }, "Baseado no almoço/jantar do seu plano. As quantidades vêm do plano — ajuste os gramas se quiser. 🌱 = da época."),
+    !S.plano ? h("div", { class: "aviso" }, "Você está usando o ", h("b", {}, "plano de exemplo"),
+      " (genérico, 100 g de cada). Toque em 💾 e carregue o seu ", h("b", {}, "meu_plano.json"),
+      " para usar as regras e quantidades da sua nutri.") : null,
+    h("p", { class: "suave" }, `Plano: ${plano().nome}. Ajuste os gramas se quiser. 🌱 = da época.`),
     passos,
     h("div", { class: "resumo-fixo" },
       h("div", {}, h("div", { class: "grande" }, `${fmt(t.kcal)} kcal`),
@@ -521,10 +537,10 @@ function telaPrato() {
       h("div", { class: "cresce", style: "text-align:right;font-size:.85rem" },
         pendencias.length ? `Falta: ${pendencias.join(", ")}` : itens.length ? "Prato completo! 🎉" : "Marque os alimentos")),
     itens.length ? h("div", { class: "cartao" },
-      h("h3", {}, "📊 Referência do plano por refeição"),
-      [["carb", "Carbo"], ["prot", "Proteína"], ["gord", "Gordura"]].map(([k, r]) => [
-        h("div", { class: "linha entre suave" }, h("span", {}, r), h("span", {}, `${fmt(t[k])} g de ~${meta[k]} g`)), barra(t[k], meta[k])]),
-      h("p", { class: "suave" }, "É só referência: algumas refeições ficam acima, outras abaixo."),
+      meta ? [h("h3", {}, "📊 Referência do plano por refeição"),
+        [["carb", "Carbo"], ["prot", "Proteína"], ["gord", "Gordura"]].map(([k, r]) => [
+          h("div", { class: "linha entre suave" }, h("span", {}, r), h("span", {}, `${fmt(t[k])} g de ~${meta[k]} g`)), barra(t[k], meta[k])]),
+        h("p", { class: "suave" }, "É só referência: algumas refeições ficam acima, outras abaixo.")] : null,
       pesoTotal ? [h("h3", {}, "🍽️ Proporção do prato (pelo peso)"),
         Object.entries(D.prato.proporcao).map(([e, ideal]) => h("div", { class: "linha entre" },
           h("span", {}, e), h("span", {}, h("b", {}, `${fmt(peso[e] / pesoTotal * 100)}%`), h("span", { class: "suave" }, ` (ideal ~${ideal}%)`))))] : null) : null,
@@ -551,7 +567,7 @@ function telaPrato() {
           const rasc = { nome, refeicoes: [...dados.refeicoes] }, extras = {};
           for (const i of dados.itens) {
             (rasc[i.espaco] ??= {})[i.id] = i.gramas;
-            if (!D.prato.opcoes[i.espaco].some((o) => o.id === i.id)) (extras[i.espaco] ??= []).push(i.id);
+            if (!(plano().opcoes[i.espaco] || []).some((o) => o.id === i.id)) (extras[i.espaco] ??= []).push(i.id);
           }
           S.rascunho.prato = rasc; S.rascunho.extras = extras; atualizar(); window.scrollTo(0, 0);
         },
@@ -695,7 +711,7 @@ function modalReferencias() {
       h("li", {}, h("b", {}, "Valores nutricionais: "), R.REF_TACO, "."),
       h("li", {}, h("b", {}, "Alimentos que não existem na TACO: "), R.REF_USDA, " — ", usda.join("; "), "."),
       h("li", {}, h("b", {}, "Salada, itens sem equivalente na TACO "), "(valores da sua planilha original): ", planilha.join("; "), "."),
-      h("li", {}, h("b", {}, "Regras do prato e metas por refeição: "), R.REF_PLANO, " (~30 g de carboidratos, ~24 g de proteínas e ~6 g de gorduras por refeição)."),
+      h("li", {}, h("b", {}, "Regras do prato e metas: "), S.plano ? `${R.REF_PLANO} (${plano().nome})` : "plano de exemplo, genérico", "."),
       h("li", {}, h("b", {}, "Proporção do prato: "), R.REF_WEBDIET_PRATO, " (50% folhas e vegetais + 15% legumes, 25% proteína, 10% carboidrato)."),
       h("li", {}, h("b", {}, "Selo 🌱: "), R.REF_WEBDIET_EPOCA, ".")),
     h("button", { class: "btn bloco", onclick: fecharModal }, "Fechar"),
@@ -721,6 +737,21 @@ function modalBackup() {
           S = Object.assign(estadoInicial(), dados); UI.modal = null; atualizar(); toast("Backup importado!");
         } catch (err) { toast("Arquivo de backup inválido."); }
       } })),
+    h("h2", { style: "margin-top:20px" }, "📄 Meu plano alimentar"),
+    h("p", { class: "suave" }, `Em uso: ${plano().nome}. O seu plano fica só neste aparelho — ele não está no site.`),
+    h("label", { class: "btn primario bloco", style: "display:grid;place-items:center" }, "📄 Carregar meu_plano.json",
+      h("input", { type: "file", accept: "application/json,.json", style: "display:none", onchange: async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try {
+          const novo = JSON.parse(await f.text());
+          if (!planoValido(novo)) throw new Error();
+          S.plano = novo; S.rascunho.prato = {}; S.rascunho.extras = {}; UI.modal = null; atualizar();
+          toast(`Plano carregado: ${novo.nome || "meu plano"}`);
+        } catch (err) { toast("Arquivo de plano inválido."); }
+      } })),
+    S.plano ? h("button", { class: "btn perigo bloco", style: "margin-top:8px", onclick: () => {
+      if (confirm("Voltar para o plano de exemplo?")) { S.plano = null; S.rascunho.prato = {}; S.rascunho.extras = {}; atualizar(); }
+    } }, "Voltar ao plano de exemplo") : null,
     h("button", { class: "btn bloco", style: "margin-top:8px", onclick: fecharModal }, "Fechar"),
   ];
 }
