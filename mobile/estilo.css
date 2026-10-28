@@ -351,3 +351,11 @@ details.cartao > summary::-webkit-details-marker { display: none; }
   color: var(--acento); font-weight: 700; font-size: .88rem;
 }
 button.link .ic { width: 15px; height: 15px; }
+
+/* Leitura do rótulo */
+.ocr { display: grid; gap: 8px; margin: 8px 0 4px; }
+.ocr .btn { border-style: dashed; border-color: var(--acento); color: var(--acento); }
+.texto-ocr { white-space: pre-wrap; font-size: .78rem; max-height: 220px; overflow: auto; background: var(--fundo); padding: 8px; border-radius: 10px; }
+
+.medidas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip.mini { min-height: 30px; padding: 4px 10px; font-size: .78rem; box-shadow: none; border: 1px solid var(--borda); }

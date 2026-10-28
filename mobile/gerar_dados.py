@@ -61,6 +61,10 @@ def main():
                 "carb": numero(r["Carbo (g)"]), "gord": numero(r["Gordura (g)"]),
             }
 
+    medidas = {}
+    for r in ler_csv("medidas_caseiras.csv"):
+        medidas.setdefault(r["id"], []).append({"medida": r["medida"], "gramas": numero(r["gramas"]), "fonte": r["fonte"]})
+
     with open(os.path.join(DADOS, "plano_exemplo.json"), encoding="utf-8") as f:
         plano_exemplo = json.load(f)
 
@@ -82,6 +86,7 @@ def main():
         "planoExemplo": plano_exemplo,
         "alimentos": alimentos,
         "daEpoca": c["DA_EPOCA"],
+        "medidas": medidas,
         "referencias": {k: c[k] for k in ("REF_TACO", "REF_USDA", "REF_PLANO", "REF_WEBDIET_PRATO", "REF_WEBDIET_EPOCA")},
     }
     destino = os.path.join(RAIZ, "mobile", "dados.js")
