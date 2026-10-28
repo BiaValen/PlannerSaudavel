@@ -206,6 +206,7 @@ PLANO_EXEMPLO_FILE = os.path.join(BASE_DIR, "banco de dados", "plano_exemplo.jso
 ALIMENTOS_PERSONALIZADOS_FILE = os.path.join(BASE_DIR, "banco de dados", "alimentos_personalizados.csv")
 PRATOS_SALVOS_FILE = os.path.join(BASE_DIR, "banco de dados", "pratos_salvos.json")
 PREFIXO_PRATO = "🍽️ "  # identifica os pratos salvos nas opções do planner
+PREFIXO_PLANO = "📋 "  # identifica as refeições do cardápio do plano alimentar
 def carregar_plano():
     arquivo = PLANO_FILE if os.path.exists(PLANO_FILE) else PLANO_EXEMPLO_FILE
     with open(arquivo, "r", encoding="utf-8") as f:
@@ -401,6 +402,23 @@ def eh_da_epoca(nome, mes):
     primeiro = nome.split(",")[0].strip().lower()
     return any(primeiro == item.lower() or nome_simples.startswith(item.lower()) for item in DA_EPOCA.get(mes, []))
 
+def cardapio_para_refeicao(refeicao, alimentos):
+    """Refeição do cardápio do plano -> formato de REFEICOES_COM_DETALHES.
+    Itens sem dado em tabela (id None, produtos de marca) aparecem, mas não entram nas calorias."""
+    kcal, ingredientes, sem_dados = 0, [], []
+    for item in refeicao["itens"]:
+        alimento = alimentos.get(item["id"]) if item.get("id") else None
+        if alimento:
+            kcal += nutrientes(alimento, item["gramas"])["kcal"]
+        else:
+            sem_dados.append(item["nome"])
+        if item["gramas"]:
+            ingredientes.append({"name": item["nome"], "quantity": item["gramas"], "unit": "g"})
+        else:
+            ingredientes.append({"name": item["nome"], "quantity": 1, "unit": item.get("medida") or "porção"})
+    return {"calories": round(kcal), "ingredients": ingredientes, "sem_dados": sem_dados,
+            "itens": refeicao["itens"], "substituicoes": refeicao.get("substituicoes", [])}
+
 def prato_para_refeicao(itens, alimentos):
     """Converte o prato salvo no formato de REFEICOES_COM_DETALHES."""
     ingredientes, kcal = [], 0
@@ -517,6 +535,10 @@ for _nome, _dados in st.session_state.saladas_salvas.items():
         itens_da_combinacao(_dados["itens"], INGREDIENTES_SALADA)
     )
 
+# O cardápio do plano alimentar também vira opção no planner
+for _refeicao in PLANO.get("cardapio", []):
+    REFEICOES_COM_DETALHES[PREFIXO_PLANO + _refeicao["nome"]] = cardapio_para_refeicao(_refeicao, ALIMENTOS)
+
 # Os pratos salvos também viram refeições
 for _nome, _dados in st.session_state.pratos_salvos.items():
     REFEICOES_COM_DETALHES[PREFIXO_PRATO + _nome] = prato_para_refeicao(_dados["itens"], ALIMENTOS)
@@ -610,6 +632,9 @@ with st.sidebar:
         st.toast('Lista de compras gerada!', icon='📝')
 
     st.caption("✅ O plano da semana é salvo automaticamente a cada mudança.")
+    if PLANO.get("orientacoes"):
+        with st.expander("📌 Orientações do plano"):
+            st.markdown("\n".join(f"- {t}" for t in PLANO["orientacoes"]))
 
 
 
@@ -640,7 +665,7 @@ if pagina == PAGINA_PLANNER:
                     meal_cols = st.columns([4, 1]) 
 
                     with meal_cols[0]:
-                        opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)] + [format_label(PREFIXO_SALADA + n) for n, d in sorted(st.session_state.saladas_salvas.items()) if categoria in d["refeicoes"]] + [format_label(PREFIXO_PRATO + n) for n, d in sorted(st.session_state.pratos_salvos.items()) if categoria in d["refeicoes"]]
+                        opcoes_formatadas = ["Nenhuma"] + [format_label(o) for o in sorted(opcoes)] + [format_label(PREFIXO_SALADA + n) for n, d in sorted(st.session_state.saladas_salvas.items()) if categoria in d["refeicoes"]] + [format_label(PREFIXO_PRATO + n) for n, d in sorted(st.session_state.pratos_salvos.items()) if categoria in d["refeicoes"]] + [format_label(PREFIXO_PLANO + r["nome"]) for r in PLANO.get("cardapio", []) if categoria in r["em"]]
                     
                         selecao_atual_formatada = format_label(st.session_state.selecoes[dia][categoria].get('meal', "Nenhuma"))
                         index_selecao = opcoes_formatadas.index(selecao_atual_formatada) if selecao_atual_formatada in opcoes_formatadas else 0
@@ -652,6 +677,17 @@ if pagina == PAGINA_PLANNER:
                             key=f"{dia}_{categoria}_meal",
                         )
                         st.session_state.selecoes[dia][categoria]['meal'] = parse_label(escolha_formatada)
+                        _det = REFEICOES_COM_DETALHES.get(parse_label(escolha_formatada), {})
+                        if "itens" in _det:  # refeição do cardápio do plano: mostra o que vai e as trocas
+                            with st.popover("📋 Ver refeição do plano"):
+                                st.markdown("\n".join(
+                                    f"- {it['nome']}" + (f" · {it['gramas']:g} g" if it["gramas"] else "")
+                                    + (f" ({it['medida']})" if it.get("medida") else "")
+                                    for it in _det["itens"]))
+                                if _det["sem_dados"]:
+                                    st.caption("Sem dado em tabela (fora das calorias — veja o rótulo): " + ", ".join(_det["sem_dados"]) + ".")
+                                if _det["substituicoes"]:
+                                    st.markdown("**Pode trocar:**\n" + "\n".join(f"- {t}" for t in _det["substituicoes"]))
 
                     with meal_cols[1]:
                         st.session_state.selecoes[dia][categoria]['people'] = st.number_input(
