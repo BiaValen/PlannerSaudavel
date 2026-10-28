@@ -342,3 +342,12 @@ details.cartao > summary::-webkit-details-marker { display: none; }
 .tipos { display: flex; flex-wrap: wrap; gap: 8px; }
 .tipos .chip { box-shadow: none; border: 1px solid var(--borda); }
 .alternador.tres { grid-template-columns: repeat(3, 1fr); }
+
+/* Alimentos livres */
+.editor .lista li { flex-wrap: nowrap; }
+.editor .gramas { width: 76px !important; flex: none; }
+.btn.link, button.link {
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 0; cursor: pointer;
+  color: var(--acento); font-weight: 700; font-size: .88rem;
+}
+button.link .ic { width: 15px; height: 15px; }
