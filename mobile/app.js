@@ -8,6 +8,7 @@ const CHAVE = "plannerSaudavel.v1";
 const PREFIXO_SALADA = "🥗 ";
 const PREFIXO_PRATO = "🍽️ ";
 const PREFIXO_PLANO = "📋 ";
+const LIVRE = "✏️ Montada com alimentos";   // refeição montada no dia, alimento por alimento
 const REFEICOES = Object.keys(D.refeicoes);
 const ESPACOS = Object.keys(D.prato.gruposTaco);
 const CATEGORIAS_SALADA = Object.keys(D.salada.ingredientes);
@@ -75,6 +76,7 @@ const UI = {
   aba: "semana",
   dia: D.dias[(hoje.getDay() + 6) % 7],
   abaPeso: "medidas",
+  modoPrato: "plano",     // "plano" (regras da nutri) | "livre" (qualquer alimento)
   modal: null,
   busca: {},
 };
@@ -142,6 +144,7 @@ const ICONES = {
   pessoa: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   haltere: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.5"/>',
   recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
 };
 function ic(nome, classe = "ic") {
@@ -234,6 +237,19 @@ function detalhes(nome) {
   }
   return null;
 }
+// Itens {id: gramas} → formato usado pelo planner e pela lista de compras
+function detalhesLivre(itens) {
+  const lista = Object.entries(itens || {}).map(([id, gramas]) => ({ id, gramas })).filter((i) => alimento(i.id));
+  return {
+    calories: Math.round(totaisPrato(lista).kcal),
+    ingredients: lista.map((i) => ({ name: alimento(i.id).nome, quantity: i.gramas, unit: "g" })),
+    livre: lista,
+  };
+}
+function detalhesSel(sel) {
+  if (!sel || !sel.meal || sel.meal === "Nenhuma") return null;
+  return sel.meal === LIVRE ? detalhesLivre(sel.livre) : detalhes(sel.meal);
+}
 function opcoesRefeicao(refeicao) {
   return [
     ...D.refeicoes[refeicao].slice().sort((a, b) => a.localeCompare(b)),
@@ -248,7 +264,7 @@ function selecao(dia, refeicao) {
   return S.planner[dia][refeicao];
 }
 function kcalDia(dia) {
-  return REFEICOES.reduce((t, r) => t + (detalhes(S.planner[dia]?.[r]?.meal || "")?.calories || 0), 0);
+  return REFEICOES.reduce((t, r) => t + (detalhesSel(S.planner[dia]?.[r])?.calories || 0), 0);
 }
 function porNoPlanner(prefixo, nome, dia, refeicao) {
   const sel = selecao(dia, refeicao);
@@ -271,7 +287,7 @@ function listaCompras() {
   for (const dia of D.dias) {
     for (const ref of REFEICOES) {
       const sel = S.planner[dia]?.[ref];
-      const det = sel && sel.meal !== "Nenhuma" ? detalhes(sel.meal) : null;
+      const det = detalhesSel(sel);
       if (!det) continue;
       for (const ing of det.ingredients) {
         const n = ing.name.toLowerCase(), u = ing.unit.toLowerCase();
@@ -341,7 +357,7 @@ function cartaoSalvar(rascunho, onSalvar, onLimpar, tipo) {
   return h("div", { class: "cartao" },
     titulo("salvar", `Salvar ${tipo}`),
     h("label", { class: "campo" }, h("span", {}, "Nome"),
-      h("input", { value: rascunho.nome, placeholder: tipo === "salada" ? "Ex.: Frango com milho" : "Ex.: Frango com arroz",
+      h("input", { value: rascunho.nome, placeholder: tipo === "salada" ? "Ex.: Frango com milho" : UI.modoPrato === "livre" ? "Ex.: Pão com ovo" : "Ex.: Frango com arroz",
         onchange: (e) => { rascunho.nome = e.target.value; salvar(); } })),
     h("details", {},
       h("summary", { class: "suave" }, `Aparece no planner em: ${rascunho.refeicoes.join(", ") || "—"}`),
@@ -438,19 +454,26 @@ function telaSemana() {
       REFEICOES.map((ref, i) => {
         const sel = selecao(dia, ref);
         const opcoes = opcoesRefeicao(ref);
-        if (sel.meal !== "Nenhuma" && !opcoes.includes(sel.meal)) opcoes.unshift(sel.meal);
-        const det = detalhes(sel.meal);
+        if (sel.meal !== "Nenhuma" && sel.meal !== LIVRE && !opcoes.includes(sel.meal)) opcoes.unshift(sel.meal);
+        const det = detalhesSel(sel);
         const [icone, cor] = ICONE_REFEICAO[i] || ["talheres", "lilas"];
         return h("div", { class: "refeicao" },
           h("span", { class: "tile " + cor }, ic(icone)),
           h("div", { class: "cresce" },
             h("div", { class: "linha entre" }, h("b", {}, semEmoji(ref)), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
             h("div", { class: "linha", style: "margin-top:6px" },
-              h("select", { class: "entrada cresce", "aria-label": semEmoji(ref), onchange: (e) => { sel.meal = e.target.value; atualizar(); } },
-                ["Nenhuma", ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
+              h("select", { class: "entrada cresce", "aria-label": semEmoji(ref), onchange: (e) => {
+                sel.meal = e.target.value;
+                if (sel.meal === LIVRE) { sel.livre ??= {}; UI.modal = () => modalLivre(dia, ref); }
+                atualizar();
+              } },
+                ["Nenhuma", LIVRE, ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
               h("select", { class: "entrada pessoas", "aria-label": "Pessoas",
                 onchange: (e) => { sel.people = Number(e.target.value); atualizar(); } },
                 [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `${n} pess.`)))),
+            sel.meal === LIVRE ? h("div", { class: "suave detalhe-plano" },
+              det.livre.length ? det.livre.map((i) => `${alimento(i.id).nome} (${fmt(i.gramas)} g)`).join(" · ") : "Nenhum alimento ainda.",
+              " ", h("button", { class: "link", onclick: () => abrirModal(() => modalLivre(dia, ref)) }, ic("lapis"), "Editar alimentos")) : null,
             det?.plano ? h("details", { class: "suave detalhe-plano" },
               h("summary", {}, ic("lista"), "Ver refeição do plano"),
               h("ul", {}, det.plano.itens.map((it) => h("li", {},
@@ -654,6 +677,79 @@ function modalTreino() {
   ];
 }
 
+/* ---------- Alimentos livres (qualquer alimento da TACO/USDA ou cadastrado) ---------- */
+const semAcento = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function buscarAlimentos(termo, excluir) {
+  const t = semAcento(termo.trim());
+  if (t.length < 2) return [];
+  const partes = t.split(/\s+/);
+  return [...Object.entries(S.personalizados), ...Object.entries(D.alimentos)]
+    .filter(([id, a]) => !excluir.has(id) && partes.every((p) => semAcento(a.nome).includes(p)))
+    .slice(0, 10);
+}
+// Medidas caseiras conhecidas: tabela pública (com fonte) + as do seu plano
+function medidasDe(id) { return [...(D.medidas?.[id] || []), ...(plano().medidas?.[id] || [])]; }
+// Lista editável {id: gramas} com busca; muda o objeto e chama atualizar()
+function editorAlimentos(itens, chaveBusca) {
+  const termo = UI.busca[chaveBusca] || "";
+  const resultados = buscarAlimentos(termo, new Set(Object.keys(itens)));
+  const lista = Object.entries(itens).filter(([id]) => alimento(id));
+  return h("div", { class: "editor" },
+    lista.length ? h("ul", { class: "lista" }, lista.map(([id, gramas]) => {
+      const a = alimento(id);
+      return h("li", {},
+        h("span", { class: "cresce" }, a.nome, h("div", { class: "suave" }, `${fmt(nutr(a, gramas).kcal)} kcal${a.fonte === "USDA" ? " · fonte: USDA" : a.fonte ? "" : " · seu cadastro"}`),
+          medidasDe(id).length ? h("div", { class: "medidas" }, medidasDe(id).map((m, j, todas) => [1, 2, 3].map((n) => h("button", {
+            // marca só a primeira combinação que dá o peso atual (50 g = 1 pão, não 2 sem miolo)
+            class: "chip mini" + (todas.flatMap((x) => [1, 2, 3].map((k) => x.gramas * k)).findIndex((g) => Math.abs(gramas - g) < 0.01) === j * 3 + n - 1 ? " ativo" : ""),
+            title: m.fonte || "Do seu plano",
+            onclick: () => { itens[id] = m.gramas * n; atualizar(); },
+          }, n === 1 ? `${m.medida} (${fmt(m.gramas)} g)` : `×${n}`)))) : null),
+        h("input", { type: "number", class: "entrada gramas", inputMode: "decimal", min: "0", step: "5", value: gramas, "aria-label": `Gramas de ${a.nome}`,
+          onchange: (e) => { const v = parseFloat(e.target.value); if (v > 0) itens[id] = v; atualizar(); } }),
+        h("span", { class: "suave" }, "g"),
+        h("button", { class: "btn perigo icone", "aria-label": `Tirar ${a.nome}`, onclick: () => { delete itens[id]; atualizar(); } }, ic("lixeira")));
+    })) : h("p", { class: "vazio" }, "Busque os alimentos abaixo e toque em Adicionar."),
+    h("label", { class: "busca" }, ic("busca"),
+      h("input", { class: "entrada", type: "search", placeholder: "Buscar (ex.: pão, ovo)…", value: termo,
+        oninput: (e) => { UI.busca[chaveBusca] = e.target.value; renderMantendoFoco(e.target); } })),
+    termo.trim().length >= 2 && !resultados.length ? h("p", { class: "suave" }, "Nada encontrado. Tente outra palavra ou cadastre em Prato → Cadastrar alimento (dá para ler o rótulo pela foto).") : null,
+    resultados.length ? h("ul", { class: "lista" }, resultados.map(([id, a]) => h("li", {},
+      h("span", { class: "cresce" }, a.nome, h("div", { class: "suave" }, `${a.grupo} · ${fmt(a.kcal)} kcal / 100 g`)),
+      h("button", { class: "btn", onclick: () => { itens[id] = medidasDe(id)[0]?.gramas || 100; UI.busca[chaveBusca] = ""; atualizar(); } }, ic("mais"), "Adicionar")))) : null,
+    h("p", { class: "suave" }, "Entra com 1 unidade quando a medida é conhecida (botões abaixo do nome); senão, com 100 g. Ajuste se precisar."));
+}
+function resumoTotais(t) {
+  return h("div", { class: "metricas" },
+    [["Calorias", `${fmt(t.kcal)} kcal`], ["Proteína", `${fmt(t.prot)} g`], ["Carbo / Gord.", `${fmt(t.carb)} / ${fmt(t.gord)} g`]]
+      .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v))));
+}
+const formLivre = { nome: "" };
+function modalLivre(dia, ref) {
+  const sel = selecao(dia, ref);
+  sel.livre ??= {};
+  const lista = Object.entries(sel.livre).map(([id, gramas]) => ({ id, gramas }));
+  return [
+    titulo("lapis", `${semEmoji(ref)} · ${dia}`, "lilas", "h2"),
+    h("p", { class: "suave" }, "Monte com o que você comeu. Fica só neste dia da semana."),
+    resumoTotais(totaisPrato(lista)),
+    editorAlimentos(sel.livre, "livre_" + dia + ref),
+    lista.length ? h("details", { class: "cartao", style: "margin-top:12px" },
+      h("summary", {}, titulo("salvar", "Salvar como prato para usar de novo", "verde", "span")),
+      h("label", { class: "campo" }, h("span", {}, "Nome"),
+        h("input", { id: "livre-nome", value: formLivre.nome, placeholder: "Ex.: Pão com ovo", oninput: (e) => { formLivre.nome = e.target.value; } })),
+      h("button", { class: "btn primario bloco", onclick: () => {
+        const nome = formLivre.nome.trim();
+        if (!nome) return toast("Dê um nome para o prato.");
+        S.pratos[nome] = { itens: lista.map((i) => ({ espaco: "Livre", ...i })), refeicoes: [ref], livre: true };
+        sel.meal = PREFIXO_PRATO + nome;
+        formLivre.nome = ""; UI.modal = null; atualizar();
+        toast(`Prato “${nome}” salvo e colocado em ${dia}.`);
+      } }, "Salvar prato")) : null,
+    h("button", { class: "btn primario bloco", style: "margin-top:12px", onclick: fecharModal }, "Pronto"),
+  ];
+}
+
 function modalCompras() {
   const itens = listaCompras();
   const texto = itens.map((i) => `☐ ${fmt(i.qtd, i.qtd % 1 ? 1 : 0)} ${i.unidade} de ${i.nome}`).join("\n");
@@ -749,7 +845,42 @@ function opcoesEspaco(espaco) {
 function itensPrato() {
   return ESPACOS.flatMap((e) => Object.entries(S.rascunho.prato[e] || {}).map(([id, gramas]) => ({ espaco: e, id, gramas })));
 }
+function abasPrato() {
+  return h("div", { class: "chips" },
+    [["plano", "prato", "Prato do plano"], ["livre", "lapis", "Livre"]].map(([k, icone, r]) =>
+      h("button", { class: "chip" + (UI.modoPrato === k ? " ativo" : ""), onclick: () => { UI.modoPrato = k; render(); } }, ic(icone), r)));
+}
+function telaPratoLivre() {
+  const R = S.rascunho.livre ??= {};
+  R.itens ??= {};
+  R.refeicoes ??= REFEICOES.filter((r) => /^(Café|Lanche)/.test(r));
+  const lista = Object.entries(R.itens).map(([id, gramas]) => ({ espaco: "Livre", id, gramas })).filter((i) => alimento(i.id));
+  const t = totaisPrato(lista);
+  return [
+    abasPrato(),
+    h("p", { class: "suave" }, "Para café, lanche ou o que quiser: sem regras de prato, com qualquer alimento da TACO, USDA ou que você cadastrou."),
+    h("div", { class: "cartao" }, titulo("lapis", "Alimentos", "lilas"), editorAlimentos(R.itens, "prato_livre")),
+    h("div", { class: "resumo-fixo" },
+      h("div", {}, h("div", { class: "grande" }, `${fmt(t.kcal)} kcal`),
+        h("div", { class: "macros" }, `P ${fmt(t.prot)} g · C ${fmt(t.carb)} g · G ${fmt(t.gord)} g`)),
+      h("div", { class: "cresce", style: "text-align:right;font-size:.85rem" }, lista.length ? `${lista.length} alimento${lista.length > 1 ? "s" : ""}` : "Adicione alimentos")),
+    cartaoSalvar(R, () => {
+      const nome = (R.nome || "").trim();
+      if (!nome) return toast("Dê um nome para o prato.");
+      if (!lista.length) return toast("Adicione pelo menos um alimento.");
+      if (!R.refeicoes.length) return toast("Escolha em quais refeições ele aparece.");
+      S.pratos[nome] = { itens: lista.map((i) => ({ ...i })), refeicoes: [...R.refeicoes], livre: true };
+      tirarDoPlanner(PREFIXO_PRATO, nome, R.refeicoes);
+      atualizar(); toast(`Prato “${nome}” salvo!`);
+    }, () => { S.rascunho.livre = {}; atualizar(); }, "prato"),
+    h("details", { class: "cartao", open: !!UI.ocr },
+      h("summary", {}, titulo("camera", "Cadastrar alimento (foto do rótulo)", "amarelo", "span")),
+      formularioAlimento()),
+    listaPratosSalvos(),
+  ];
+}
 function telaPrato() {
+  if (UI.modoPrato === "livre") return telaPratoLivre();
   const P = S.rascunho.prato;
   const itens = itensPrato();
   const t = totaisPrato(itens);
@@ -813,6 +944,7 @@ function telaPrato() {
   const peso = Object.fromEntries(Object.keys(D.prato.proporcao).map((e) => [e, itens.filter((i) => i.espaco === e).reduce((s, i) => s + i.gramas, 0)]));
   const pesoTotal = Object.values(peso).reduce((s, g) => s + g, 0);
   return [
+    abasPrato(),
     !S.plano ? h("div", { class: "aviso" }, "Você está usando o ", h("b", {}, "plano de exemplo"),
       " (genérico, 100 g de cada). Toque no seu perfil (círculo no topo) → Backup e plano alimentar, e carregue o seu ", h("b", {}, "meu_plano.json"),
       " para usar as regras e quantidades da sua nutri.") : null,
@@ -840,9 +972,14 @@ function telaPrato() {
       tirarDoPlanner(PREFIXO_PRATO, nome, P.refeicoes);
       atualizar(); toast(`Prato “${nome}” salvo!`);
     }, () => { S.rascunho.prato = {}; S.rascunho.extras = {}; atualizar(); }, "prato"),
-    h("details", { class: "cartao" },
-      h("summary", {}, titulo("mais", "Cadastrar alimento que não está na TACO", "amarelo", "span")),
+    h("details", { class: "cartao", open: !!UI.ocr },
+      h("summary", {}, titulo("camera", "Cadastrar alimento (foto do rótulo)", "amarelo", "span")),
       formularioAlimento()),
+    listaPratosSalvos(),
+  ];
+}
+function listaPratosSalvos() {
+  return [
     titulo("livro", "Meus pratos", "verde", "h2"),
     Object.keys(S.pratos).length ? Object.entries(S.pratos).sort(([a], [b]) => a.localeCompare(b)).map(([nome, dados]) => {
       const tp = totaisPrato(dados.itens);
@@ -851,6 +988,11 @@ function telaPrato() {
         resumo: `${fmt(tp.kcal)} kcal · P ${fmt(tp.prot)} g · C ${fmt(tp.carb)} g · G ${fmt(tp.gord)} g`,
         descricao: dados.itens.map((i) => `${alimento(i.id)?.nome || "(excluído)"} (${fmt(i.gramas)} g)`).join(" · "),
         carregarFn: () => {
+          if (dados.livre) {
+            S.rascunho.livre = { nome, refeicoes: [...dados.refeicoes], itens: Object.fromEntries(dados.itens.map((i) => [i.id, i.gramas])) };
+            UI.modoPrato = "livre"; atualizar(); window.scrollTo(0, 0); return;
+          }
+          UI.modoPrato = "plano";
           const rasc = { nome, refeicoes: [...dados.refeicoes] }, extras = {};
           for (const i of dados.itens) {
             (rasc[i.espaco] ??= {})[i.id] = i.gramas;
@@ -864,13 +1006,163 @@ function telaPrato() {
     }) : h("p", { class: "vazio" }, "Nenhum prato salvo ainda."),
   ];
 }
+/* ---------- Leitura do rótulo pela foto (OCR no próprio celular, com Tesseract.js) ---------- */
+// O leitor (~10 MB) só é baixado quando você usa; depois fica guardado no aparelho.
+const OCR = {
+  script: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+  worker: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+  core: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+  lang: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/por@1.0.0/4.0.0_best_int",
+};
+const tirarAcentos = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Números de um trecho do rótulo ("1,2" → 1.2), ignorando os de %VD e os em kJ
+function numerosRotulo(trecho) {
+  const out = [], re = /(\d+(?:[.,]\d+)?)\s*(%|kj)?/gi;
+  let m;
+  while ((m = re.exec(trecho))) if (!m[2]) out.push(parseFloat(m[1].replace(",", ".")));
+  return out;
+}
+// Lê o texto de uma tabela nutricional brasileira (modelo novo, com coluna de 100 g, ou antigo, só por porção)
+function lerRotulo(texto) {
+  const linhas = tirarAcentos(texto).split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const tudo = linhas.join("\n");
+  const iEnergia = tudo.search(/valor energetico|energia/);
+  const cabecalho = iEnergia >= 0 ? tudo.slice(0, iEnergia) : tudo;
+  // Modelo novo (RDC 429/2020): tem coluna "100 g" e termos como "porções por embalagem"/"carboidratos totais"
+  const por100 = /(^|\s)[1il\/|]00\s*(g|9|ml)\b/.test(cabecalho) || /porcoes por embalagem|carboidratos totais|acucares totais/.test(tudo);
+  const mp = /porcao\s*(?:de|:)?\s*(\d+(?:[.,]\d+)?)\s*(g|ml)\b\s*(\([^)]*\))?/.exec(tudo);
+  const porcao = mp ? parseFloat(mp[1].replace(",", ".")) : null;
+  const medida = mp?.[3] ? mp[3].slice(1, -1).trim() : "";
+  const valor = (teste, energia = false) => {
+    const i = linhas.findIndex(teste);
+    if (i < 0) return null;
+    // tira o nome do nutriente e unidades entre parênteses, como "(g)" — que o leitor às vezes lê como "(9)"
+    let trecho = linhas[i].replace(/\([^)]{0,6}\)/g, " ").replace(/^[^\d]*?(valor energetico|energia|carboidratos?( totais)?|proteinas?|gorduras? totais|gorduras?)/, " ");
+    if (!numerosRotulo(trecho).length && linhas[i + 1]) trecho += " " + linhas[i + 1];
+    // confusões comuns do leitor dentro de números: "1/4" → 174, "1o" → 10
+    trecho = trecho.replace(/(\d)\/(\d)/g, "$17$2").replace(/(\d)[o](?=\d|\b)/g, "$10");
+    if (energia) { const k = /(\d+(?:[.,]\d+)?)\s*kcal/.exec(trecho); if (k && !por100) return parseFloat(k[1].replace(",", ".")); }
+    return numerosRotulo(trecho)[0] ?? null;
+  };
+  const brutos = {
+    kcal: valor((l) => /valor energetico|energia/.test(l), true),
+    carb: valor((l) => l.includes("carboidrato")),
+    prot: valor((l) => l.includes("proteina")),
+    gord: valor((l) => /gorduras? tota/.test(l)) ?? valor((l) => /^gorduras?\b/.test(l) && !/satur|trans/.test(l)),
+  };
+  const fator = por100 ? 1 : porcao ? 100 / porcao : null;
+  const arred = (v) => v == null ? null : Math.round(v * 10) / 10;
+  const r = {};
+  for (const [k, v] of Object.entries(brutos)) r[k] = v == null ? null : arred(fator ? v * fator : v);
+  // Conferência: calorias ≈ 4×carbo + 4×proteína + 9×gordura
+  const estimada = [r.carb, r.prot, r.gord].every((v) => v != null) ? 4 * r.carb + 4 * r.prot + 9 * r.gord : null;
+  const confere = r.kcal == null || estimada == null || Math.abs(r.kcal - estimada) <= Math.max(25, estimada * 0.3);
+  return { ...r, porcao, medida, base: por100 ? "100 g" : porcao ? "porção" : null, confere, estimada };
+}
+let tesseractCarregando = null;
+function carregarTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  return tesseractCarregando ??= new Promise((ok, erro) => {
+    const s = document.createElement("script");
+    s.src = OCR.script;
+    s.onload = () => ok(window.Tesseract);
+    s.onerror = () => { tesseractCarregando = null; s.remove(); erro(new Error("leitor não carregou")); };
+    document.head.append(s);
+  });
+}
+// Ajusta o tamanho da foto (lado maior ~2000 px) e deixa em preto e branco, o que ajuda o leitor
+async function prepararFoto(arquivo) {
+  const img = await createImageBitmap(arquivo);
+  const escala = 2000 / Math.max(img.width, img.height);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(img, 0, 0, c.width, c.height);
+  const px = g.getImageData(0, 0, c.width, c.height), d = px.data;
+  // Limiar de Otsu sobre a luminância
+  const lum = new Uint8Array(d.length / 4), hist = new Array(256).fill(0);
+  for (let i = 0; i < lum.length; i++) { lum[i] = (d[i * 4] * 299 + d[i * 4 + 1] * 587 + d[i * 4 + 2] * 114) / 1000; hist[lum[i]]++; }
+  let soma = 0; for (let t = 0; t < 256; t++) soma += t * hist[t];
+  let sB = 0, wB = 0, melhor = 0, limiar = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = lum.length - wB; if (!wF) break;
+    sB += t * hist[t];
+    const entre = wB * wF * (sB / wB - (soma - sB) / wF) ** 2;
+    if (entre > melhor) { melhor = entre; limiar = t; }
+  }
+  const W = c.width, H = c.height, preto = new Uint8Array(W * H);
+  for (let i = 0; i < preto.length; i++) preto[i] = lum[i] <= limiar ? 1 : 0;
+  // Apaga as linhas da tabela (traços pretos longos), que atrapalham a leitura dos números
+  const limpar = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0, ini = -1; x <= W; x++) {
+    const on = x < W && preto[y * W + x];
+    if (on && ini < 0) ini = x;
+    if (!on && ini >= 0) { if (x - ini > W * 0.2) for (let k = ini; k < x; k++) limpar[y * W + k] = 1; ini = -1; }
+  }
+  for (let x = 0; x < W; x++) for (let y = 0, ini = -1; y <= H; y++) {
+    const on = y < H && preto[y * W + x];
+    if (on && ini < 0) ini = y;
+    if (!on && ini >= 0) { if (y - ini > H * 0.1) for (let k = ini; k < y; k++) limpar[k * W + x] = 1; ini = -1; }
+  }
+  for (let i = 0; i < preto.length; i++) { const v = preto[i] && !limpar[i] ? 0 : 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; }
+  g.putImageData(px, 0, 0);
+  return c;
+}
+function statusOcr(texto) {
+  UI.ocr = { ...(UI.ocr || {}), status: texto };
+  const el = document.getElementById("ocr-status");
+  if (el) el.textContent = texto; else render();
+}
+async function lerFotoRotulo(arquivo) {
+  UI.ocr = { status: "Abrindo o leitor… (na primeira vez ele é baixado, precisa de internet)" }; render();
+  try {
+    const T = await carregarTesseract();
+    const foto = await prepararFoto(arquivo);
+    const worker = await T.createWorker("por", 1, {
+      workerPath: OCR.worker, corePath: OCR.core, langPath: OCR.lang,
+      logger: (m) => { if (m.status === "recognizing text") statusOcr(`Lendo o rótulo… ${Math.round(m.progress * 100)}%`); },
+    });
+    await worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
+    const { data } = await worker.recognize(foto);
+    await worker.terminate();
+    const r = lerRotulo(data.text);
+    const N = novoAlimento;
+    for (const k of ["kcal", "prot", "carb", "gord"]) if (r[k] != null) N[k] = r[k];
+    if (r.porcao) N.gramas = r.porcao;
+    if (r.medida) N.medida = r.medida;
+    const achou = ["kcal", "prot", "carb", "gord"].filter((k) => r[k] != null).length;
+    UI.ocr = { texto: data.text, achou, base: r.base, confere: r.confere, estimada: r.estimada };
+    render();
+    toast(achou ? "Pronto! Confira os números com o rótulo antes de cadastrar." : "Não achei a tabela na foto. Tente de novo, mais perto e reto.");
+  } catch (e) {
+    UI.ocr = { erro: "Não consegui ler a foto. Na primeira vez o leitor precisa de internet; depois, tente uma foto nítida, reta e com boa luz." };
+    render();
+  }
+}
+function blocoOcr() {
+  const O = UI.ocr || {};
+  return h("div", { class: "ocr" },
+    h("label", { class: "btn bloco" }, ic("camera"), "Ler rótulo pela foto",
+      h("input", { type: "file", accept: "image/*", capture: "environment", style: "display:none",
+        onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) lerFotoRotulo(f); } })),
+    O.status && O.achou == null && !O.erro ? h("p", { class: "suave", id: "ocr-status", role: "status" }, O.status) : null,
+    O.erro ? h("p", { class: "aviso" }, O.erro) : null,
+    O.achou != null ? h("p", { class: O.achou === 4 ? "suave" : "aviso" },
+      O.achou ? `Li ${O.achou} de 4 valores` + (O.base === "porção" ? " (convertidos da porção para 100 g)" : O.base === "100 g" ? " (coluna de 100 g)" : " (não achei a porção: confira se é por 100 g)") + ". Confira com o rótulo e corrija o que precisar."
+        : "Não encontrei a tabela nutricional na foto.") : null,
+    O.achou && O.confere === false ? h("p", { class: "aviso" },
+      `⚠️ As calorias lidas não batem com os macros (pelos macros daria ~${fmt(O.estimada)} kcal). Algum número foi lido errado: confira com o rótulo.`) : null,
+    O.texto ? h("details", { class: "suave" }, h("summary", {}, "Ver o texto lido"), h("pre", { class: "texto-ocr" }, O.texto)) : null);
+}
 const novoAlimento = { nome: "", grupo: "Proteína", kcal: null, prot: null, carb: null, gord: null, gramas: 100, medida: "" };
 function formularioAlimento() {
   const N = novoAlimento;
   const meus = Object.entries(S.personalizados);
   return [
-    h("p", { class: "suave" }, "Informe os valores por 100 g (do rótulo ou de outra tabela)."),
-    h("label", { class: "campo" }, h("span", {}, "Nome"), h("input", { value: N.nome, placeholder: "Ex.: Hambúrguer de lentilha", onchange: (e) => { N.nome = e.target.value; } })),
+    h("p", { class: "suave" }, "Tire uma foto da tabela nutricional ou digite os valores por 100 g."),
+    blocoOcr(),
+    h("label", { class: "campo" }, h("span", {}, "Nome"), h("input", { id: "novo-nome", value: N.nome, placeholder: "Ex.: Hambúrguer de lentilha", onchange: (e) => { N.nome = e.target.value; } })),
     h("label", { class: "campo" }, h("span", {}, "Espaço do prato"), selectSimples(N.grupo, ESPACOS, (v) => { N.grupo = v; })),
     h("div", { class: "grade2" },
       campoNumero("Calorias (kcal/100 g)", N.kcal, (v) => { N.kcal = v; }),
@@ -884,6 +1176,7 @@ function formularioAlimento() {
       const id = "P" + (Math.max(0, ...Object.keys(S.personalizados).map((k) => Number(k.slice(1)) || 0)) + 1);
       S.personalizados[id] = { nome: N.nome.trim(), grupo: N.grupo, fonte: "", kcal: N.kcal || 0, prot: N.prot || 0, carb: N.carb || 0, gord: N.gord || 0, gramas: N.gramas || 100, medida: N.medida };
       Object.assign(N, { nome: "", kcal: null, prot: null, carb: null, gord: null, gramas: 100, medida: "" });
+      UI.ocr = null;
       atualizar(); toast("Alimento cadastrado!");
     } }, "Cadastrar"),
     meus.length ? h("ul", { class: "lista", style: "margin-top:8px" }, meus.map(([id, a]) => h("li", {},
@@ -1016,7 +1309,11 @@ function modalReferencias() {
       h("li", {}, h("b", {}, "Salada, itens sem equivalente na TACO "), "(valores da sua planilha original): ", planilha.join("; "), "."),
       h("li", {}, h("b", {}, "Regras do prato e metas: "), S.plano ? `${R.REF_PLANO} (${plano().nome})` : "plano de exemplo, genérico", "."),
       h("li", {}, h("b", {}, "Proporção do prato: "), R.REF_WEBDIET_PRATO, " (50% folhas e vegetais + 15% legumes, 25% proteína, 10% carboidrato)."),
-      h("li", {}, h("b", {}, "Selo 🌱: "), R.REF_WEBDIET_EPOCA, ".")),
+      h("li", {}, h("b", {}, "Selo 🌱: "), R.REF_WEBDIET_EPOCA, "."),
+      h("li", {}, h("b", {}, "Medidas caseiras (peso por unidade): "),
+        [...new Set(Object.values(D.medidas || {}).flat().map((m) => m.fonte))].join("; "),
+        S.plano?.medidas ? "; e as porções do seu plano alimentar" : "", "."),
+      h("li", {}, h("b", {}, "Leitura do rótulo pela foto: "), "Tesseract.js (código aberto, licença Apache 2.0), roda no próprio celular. Os números lidos são conferidos por você antes de cadastrar.")),
     h("button", { class: "btn bloco", onclick: fecharModal }, "Fechar"),
   ];
 }
