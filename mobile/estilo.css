@@ -31,20 +31,19 @@
   --fonte: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --acento: #9C86FF; --acento-forte: #B6A6FF; --acento-claro: #2C2550; --botao: #6D52E8;
-    --fundo: #14122A; --cartao: #1E1B3A; --texto: #ECEAFB; --texto-suave: #A7A3C7; --borda: #302B55;
-    --perigo: #FF7D93; --ok: #6FD39C; --ok-claro: #1D3A2E; --aviso-claro: #3D3020; --aviso-texto: #FFC37A;
-    --sombra: 0 8px 24px rgba(0, 0, 0, .25);
-    --destaque-a: #3A2347; --destaque-b: #2A2456;
-    --azul-f: #1E2A48; --azul-q: #2A3B66; --azul-i: #8DB4FF;
-    --rosa-f: #3A1E2E; --rosa-q: #552A42; --rosa-i: #FF8FB6;
-    --amarelo-f: #352B17; --amarelo-q: #4D3D1C; --amarelo-i: #FFCF6B;
-    --verde-f: #17332A; --verde-q: #22483A; --verde-i: #7EDCA6;
-    --lilas-f: #261F48; --lilas-q: #362C66; --lilas-i: #B7A6FF;
-    color-scheme: dark;
-  }
+/* Tema escuro: escolhido em Perfil → Aparência (o app põe data-theme no <html>) */
+:root[data-theme="dark"] {
+  --acento: #9C86FF; --acento-forte: #B6A6FF; --acento-claro: #2C2550; --botao: #6D52E8;
+  --fundo: #14122A; --cartao: #1E1B3A; --texto: #ECEAFB; --texto-suave: #A7A3C7; --borda: #302B55;
+  --perigo: #FF7D93; --ok: #6FD39C; --ok-claro: #1D3A2E; --aviso-claro: #3D3020; --aviso-texto: #FFC37A;
+  --sombra: 0 8px 24px rgba(0, 0, 0, .25);
+  --destaque-a: #3A2347; --destaque-b: #2A2456;
+  --azul-f: #1E2A48; --azul-q: #2A3B66; --azul-i: #8DB4FF;
+  --rosa-f: #3A1E2E; --rosa-q: #552A42; --rosa-i: #FF8FB6;
+  --amarelo-f: #352B17; --amarelo-q: #4D3D1C; --amarelo-i: #FFCF6B;
+  --verde-f: #17332A; --verde-q: #22483A; --verde-i: #7EDCA6;
+  --lilas-f: #261F48; --lilas-q: #362C66; --lilas-i: #B7A6FF;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -304,3 +303,24 @@ details.cartao > summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Perfil */
+.avatar {
+  width: 42px; height: 42px; border-radius: 50%; flex: none; border: 0; cursor: pointer;
+  display: grid; place-items: center; color: #fff; font-family: var(--fonte-titulo); font-weight: 700; font-size: 1.05rem;
+  background: linear-gradient(145deg, #FFA3C2, #9A80FF); box-shadow: var(--sombra);
+}
+.avatar .ic { width: 22px; height: 22px; }
+.perfil-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.perfil-topo .avatar { width: 58px; height: 58px; font-size: 1.5rem; cursor: default; }
+.perfil-topo h2 { margin: 0; }
+.secao { margin: 18px 0 6px; }
+.alternador { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; background: var(--fundo); border-radius: 16px; }
+.alternador button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; background: none; border-radius: 12px; min-height: 44px; font-weight: 700; cursor: pointer; color: var(--texto-suave);
+}
+.alternador button .ic { width: 18px; height: 18px; }
+.alternador button.ativo { background: var(--cartao); color: var(--acento); box-shadow: var(--sombra); }
+.grafico .linha-alvo { stroke: var(--acento); stroke-width: 1.5; stroke-dasharray: 2 4; }
+.grafico .eixo.alvo { fill: var(--acento); font-weight: 700; }

@@ -40,6 +40,8 @@ function estadoInicial() {
     bio: [],                // [{data, peso, imc, ..., tipo}]
     rascunho: { salada: {}, prato: {}, extras: {} },
     plano: null,            // plano alimentar carregado de meu_plano.json (fica só no aparelho)
+    perfil: {},             // {nome, nascimento, altura (cm), pesoMeta (kg)}
+    tema: "claro",          // "claro" | "escuro"
   };
 }
 let armazenamentoOk = true;
@@ -58,7 +60,7 @@ function salvar() {
   catch (e) { armazenamentoOk = false; }
 }
 
-// Plano alimentar em uso: o que você carregou no aparelho (💾) ou o de exemplo, genérico
+// Plano alimentar em uso: o que você carregou no aparelho (Perfil → Backup) ou o de exemplo, genérico
 const plano = () => S.plano || D.planoExemplo;
 function planoValido(p) {
   return p && typeof p === "object" && p.regras && p.opcoes && p.descricao
@@ -135,6 +137,8 @@ const ICONES = {
   livro: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v14H6a2 2 0 0 0-2 2.5 2 2 0 0 0 2 2h14"/>',
   documento: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
   busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  pessoa: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
 };
 function ic(nome, classe = "ic") {
@@ -358,13 +362,14 @@ function regressao(pontos) {
   const a = sxx ? sxy / sxx : 0;
   return { a, b: my - a * mx };
 }
-function grafico(registros, chave, unidade) {
+function grafico(registros, chave, unidade, meta = null) {
   const dados = registros.filter((r) => r[chave] != null && r.data)
     .map((r) => ({ data: r.data, x: Date.parse(r.data) / 864e5, y: r[chave] })).sort((p, q) => p.x - q.x);
   if (!dados.length) return h("p", { class: "vazio" }, "Sem registros ainda.");
   const L = 340, A = 180, me = 38, md = 10, mt = 10, mb = 24;
   const xs = dados.map((p) => p.x), ys = dados.map((p) => p.y);
   let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x0 === x1) { x0 -= 1; x1 += 1; }
+  if (meta != null) ys.push(meta);
   let y0 = Math.min(...ys), y1 = Math.max(...ys); const folga = (y1 - y0) * 0.15 || 1; y0 -= folga; y1 += folga;
   const px = (x) => me + (x - x0) / (x1 - x0) * (L - me - md);
   const py = (y) => mt + (1 - (y - y0) / (y1 - y0)) * (A - mt - mb);
@@ -379,6 +384,10 @@ function grafico(registros, chave, unidade) {
   for (const [p, ancora] of [[dados[0], "start"], [dados[dados.length - 1], "end"]]) {
     const t = s("text", { x: px(p.x), y: A - 6, "text-anchor": dados.length === 1 ? "middle" : ancora, class: "eixo" });
     t.textContent = dataBR(p.data).slice(0, 5); svg.append(t);
+  }
+  if (meta != null) {
+    svg.append(s("line", { x1: me, x2: L - md, y1: py(meta), y2: py(meta), class: "linha-alvo" }));
+    const t = s("text", { x: L - md, y: py(meta) - 5, "text-anchor": "end", class: "eixo alvo" }); t.textContent = `meta ${fmt(meta, 1)}`; svg.append(t);
   }
   let rodape = null;
   if (dados.length >= 2) {
@@ -680,7 +689,7 @@ function telaPrato() {
   const pesoTotal = Object.values(peso).reduce((s, g) => s + g, 0);
   return [
     !S.plano ? h("div", { class: "aviso" }, "Você está usando o ", h("b", {}, "plano de exemplo"),
-      " (genérico, 100 g de cada). Toque no botão de backup, no topo, e carregue o seu ", h("b", {}, "meu_plano.json"),
+      " (genérico, 100 g de cada). Toque no seu perfil (círculo no topo) → Backup e plano alimentar, e carregue o seu ", h("b", {}, "meu_plano.json"),
       " para usar as regras e quantidades da sua nutri.") : null,
     h("p", { class: "suave" }, `Plano: ${plano().nome}. Ajuste os gramas se quiser. 🌱 = da época.`),
     passos,
@@ -786,25 +795,41 @@ function historico(lista, campos, extra = []) {
       if (confirm(`Excluir o registro de ${dataBR(r.data)}?`)) { lista.splice(lista.indexOf(r), 1); atualizar(); }
     } }, ic("lixeira")))));
 }
+// Peso: junta medidas e bioimpedância (no mesmo dia, vale o das medidas)
+function seriePeso() {
+  const pesos = {};
+  for (const r of S.bio) if (r.peso != null) pesos[r.data] = r.peso;
+  for (const r of S.medidas) if (r.peso != null) pesos[r.data] = r.peso;
+  return Object.entries(pesos).map(([data, peso]) => ({ data, peso })).sort((a, b) => a.data.localeCompare(b.data));
+}
+function faltaMeta(atual, meta) {
+  const d = atual - meta;
+  return Math.abs(d) < 0.05 ? "na meta!" : `${d > 0 ? "−" : "+"}${fmt(Math.abs(d), 1)} kg`;
+}
+function idade(iso) {
+  if (!iso) return null;
+  const n = new Date(iso + "T12:00"), h0 = new Date();
+  let a = h0.getFullYear() - n.getFullYear();
+  if (h0.getMonth() < n.getMonth() || (h0.getMonth() === n.getMonth() && h0.getDate() < n.getDate())) a--;
+  return a >= 0 && a < 130 ? a : null;
+}
 function telaPeso() {
   const abas = h("div", { class: "chips" },
     [["medidas", "regua", "Medidas e peso"], ["bio", "alvo", "Bioimpedância"]].map(([k, icone, r]) =>
       h("button", { class: "chip" + (UI.abaPeso === k ? " ativo" : ""), onclick: () => { UI.abaPeso = k; render(); } }, ic(icone), r)));
   if (UI.abaPeso === "medidas") {
-    // Peso: junta medidas e bioimpedância (no mesmo dia, vale o das medidas)
-    const pesos = {};
-    for (const r of S.bio) if (r.peso != null) pesos[r.data] = r.peso;
-    for (const r of S.medidas) if (r.peso != null) pesos[r.data] = r.peso;
-    const serie = Object.entries(pesos).map(([data, peso]) => ({ data, peso })).sort((a, b) => a.data.localeCompare(b.data));
+    const serie = seriePeso();
+    const meta = S.perfil.pesoMeta;
     const comMedida = CAMPOS_MEDIDAS.filter(([k, , u]) => u === "cm" && S.medidas.some((r) => r[k] != null));
     if (comMedida.length && !comMedida.some(([k]) => k === escolhaGrafico.medida)) escolhaGrafico.medida = comMedida[0][0];
     return [abas,
       h("div", { class: "cartao" },
         titulo("grafico", "Tendência do peso", "rosa"),
         serie.length ? h("div", { class: "metricas" },
-          [["Atual", `${fmt(serie.at(-1).peso, 1)} kg`], ["Desde o início", `${serie.at(-1).peso - serie[0].peso >= 0 ? "+" : ""}${fmt(serie.at(-1).peso - serie[0].peso, 1)} kg`], ["Registros", serie.length]]
+          [["Atual", `${fmt(serie.at(-1).peso, 1)} kg`], ["Desde o início", `${serie.at(-1).peso - serie[0].peso >= 0 ? "+" : ""}${fmt(serie.at(-1).peso - serie[0].peso, 1)} kg`],
+            meta ? ["Para a meta", faltaMeta(serie.at(-1).peso, meta)] : ["Registros", serie.length]]
             .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v)))) : null,
-        grafico(serie, "peso", "kg")),
+        grafico(serie, "peso", "kg", meta || null)),
       h("div", { class: "cartao" },
         titulo("mais", "Novo registro", "lilas"),
         h("label", { class: "campo" }, h("span", {}, "Data"), h("input", { type: "date", value: formMedidas.data, onchange: (e) => { formMedidas.data = e.target.value; } })),
@@ -887,7 +912,7 @@ function modalBackup() {
           const dados = JSON.parse(await f.text());
           if (typeof dados !== "object" || !dados) throw new Error();
           if (!confirm("Importar substitui todos os dados atuais deste aparelho. Continuar?")) return;
-          S = Object.assign(estadoInicial(), dados); UI.modal = null; atualizar(); toast("Backup importado!");
+          S = Object.assign(estadoInicial(), dados); UI.modal = null; aplicarTema(); atualizar(); toast("Backup importado!");
         } catch (err) { toast("Arquivo de backup inválido."); }
       } })),
     h("div", { style: "margin-top:20px" }, titulo("documento", "Meu plano alimentar", "verde", "h2")),
@@ -909,6 +934,59 @@ function modalBackup() {
   ];
 }
 
+/* ---------- Perfil e configurações ---------- */
+function aplicarTema() {
+  const escuro = S.tema === "escuro";
+  if (escuro) document.documentElement.dataset.theme = "dark";
+  else document.documentElement.dataset.theme = "light";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", escuro ? "#14122A" : "#EEEBFB");
+}
+function inicial() { return (S.perfil.nome || "").trim().charAt(0).toUpperCase(); }
+function modalPerfil() {
+  const P = S.perfil;
+  const serie = seriePeso();
+  const atual = serie.at(-1)?.peso;
+  const imc = atual && P.altura ? atual / (P.altura / 100) ** 2 : null;
+  const anos = idade(P.nascimento);
+  const mudar = (k, v) => { if (v == null || v === "") delete P[k]; else P[k] = v; atualizar(); };
+  const numero = (e) => { const v = parseFloat(String(e.target.value).replace(",", ".")); return Number.isFinite(v) && v > 0 ? v : null; };
+  return [
+    h("div", { class: "perfil-topo" },
+      h("span", { class: "avatar", "aria-hidden": "true" }, inicial() || ic("pessoa")),
+      h("div", { class: "cresce" }, h("h2", {}, P.nome ? `Olá, ${P.nome}!` : "Seu perfil"),
+        h("div", { class: "suave" }, anos != null ? `${anos} anos` : "Fica salvo só neste aparelho."))),
+    h("div", { class: "metricas" },
+      [["Peso atual", atual ? `${fmt(atual, 1)} kg` : "—"],
+       ["Meta", P.pesoMeta ? `${fmt(P.pesoMeta, 1)} kg` : "—"],
+       atual && P.pesoMeta ? ["Para a meta", faltaMeta(atual, P.pesoMeta)] : ["IMC", imc ? fmt(imc, 1) : "—"]]
+        .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v)))),
+    atual && P.pesoMeta && imc ? h("p", { class: "suave" }, `IMC calculado: ${fmt(imc, 1)} (peso do último registro e sua altura).`) : null,
+    !atual ? h("p", { class: "suave" }, "O peso atual vem do último registro da aba Peso.") : null,
+    h("div", { class: "secao" }, titulo("pessoa", "Seus dados", "rosa")),
+    h("label", { class: "campo" }, h("span", {}, "Nome"),
+      h("input", { id: "perfil-nome", value: P.nome || "", placeholder: "Como quer ser chamada?", autocomplete: "given-name",
+        onchange: (e) => mudar("nome", e.target.value.trim()) })),
+    h("label", { class: "campo" }, h("span", {}, "Data de nascimento"),
+      h("input", { id: "perfil-nascimento", type: "date", value: P.nascimento || "", max: hojeISO(),
+        onchange: (e) => mudar("nascimento", e.target.value) })),
+    h("div", { class: "grade2" },
+      h("label", { class: "campo" }, h("span", {}, "Altura (cm)"),
+        h("input", { id: "perfil-altura", type: "number", inputMode: "decimal", min: "50", max: "250", step: "0.5", value: P.altura ?? "", placeholder: "Ex.: 165",
+          onchange: (e) => mudar("altura", numero(e)) })),
+      h("label", { class: "campo" }, h("span", {}, "Peso meta (kg)"),
+        h("input", { id: "perfil-meta", type: "number", inputMode: "decimal", min: "20", max: "300", step: "0.1", value: P.pesoMeta ?? "", placeholder: "Ex.: 62",
+          onchange: (e) => mudar("pesoMeta", numero(e)) }))),
+    h("div", { class: "secao" }, titulo("sol", "Aparência", "amarelo")),
+    h("div", { class: "alternador", role: "radiogroup", "aria-label": "Tema" },
+      [["claro", "sol", "Claro"], ["escuro", "lua", "Escuro"]].map(([k, icone, r]) =>
+        h("button", { class: S.tema === k ? "ativo" : "", role: "radio", "aria-checked": String(S.tema === k),
+          onclick: () => { S.tema = k; aplicarTema(); atualizar(); } }, ic(icone), r))),
+    h("div", { class: "secao" }, titulo("baixar", "Dados e plano", "lilas")),
+    h("button", { class: "btn bloco", onclick: () => abrirModal(modalBackup) }, ic("baixar"), "Backup e plano alimentar"),
+    h("button", { class: "btn primario bloco", style: "margin-top:12px", onclick: fecharModal }, "Pronto"),
+  ];
+}
+
 /* ---------- Render ---------- */
 const ABAS = [["semana", "semana", "Semana"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
 const TITULOS = { semana: "Plano da semana", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
@@ -919,10 +997,10 @@ function render() {
   const partes = [
     h("header", { class: "topo" },
       h("span", { class: "logo" }, ic("salada")),
-      h("div", { class: "cresce" }, h("div", { class: "marca" }, "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
+      h("div", { class: "cresce" }, h("div", { class: "marca" }, S.perfil.nome ? `Olá, ${S.perfil.nome}!` : "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
       h("button", { class: "icone-btn", "aria-label": "Referências", title: "Referências", onclick: () => abrirModal(modalReferencias) }, ic("ajuda")),
-      h("button", { class: "icone-btn", "aria-label": "Backup e plano", title: "Backup e plano", onclick: () => abrirModal(modalBackup) }, ic("baixar"))),
-    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Use o botão de backup, no topo, para exportar seus dados.") : null,
+      h("button", { class: "avatar", "aria-label": "Perfil e configurações", title: "Perfil e configurações", onclick: () => abrirModal(modalPerfil) }, inicial() || ic("pessoa"))),
+    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Abra o perfil (círculo no topo) → Backup e plano alimentar para exportar seus dados.") : null,
     telas[UI.aba](),
     h("nav", { class: "nav" }, h("div", { class: "nav-interno" }, ABAS.map(([k, e, r]) =>
       h("button", { class: UI.aba === k ? "ativo" : "", "aria-current": UI.aba === k ? "page" : null,
@@ -941,4 +1019,5 @@ function renderMantendoFoco(campo) {
   const novo = [...document.querySelectorAll("input[type=search]")].find((i) => i.placeholder === ph && i.value === campo.value);
   if (novo) { novo.focus(); try { novo.setSelectionRange(pos, pos); } catch (e) {} }
 }
+aplicarTema();
 render();
