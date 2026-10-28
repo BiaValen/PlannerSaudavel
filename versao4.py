@@ -199,35 +199,35 @@ REGRAS_SALADA = {
 TACO_FILE = os.path.join(BASE_DIR, "banco de dados", "taco.csv")
 # Alimentos que não existem na TACO: USDA National Nutrient Database for Standard Reference, Release 28 (SR28)
 USDA_FILE = os.path.join(BASE_DIR, "banco de dados", "alimentos_usda.csv")
-PRATO_OPCOES_FILE = os.path.join(BASE_DIR, "banco de dados", "prato_opcoes.csv")
+# Plano alimentar: regras, quantidades e metas do prato. O seu fica em meu_plano.json (fora do git, só no
+# seu computador); sem ele, o app usa o plano_exemplo.json, que é genérico.
+PLANO_FILE = os.path.join(BASE_DIR, "banco de dados", "meu_plano.json")
+PLANO_EXEMPLO_FILE = os.path.join(BASE_DIR, "banco de dados", "plano_exemplo.json")
 ALIMENTOS_PERSONALIZADOS_FILE = os.path.join(BASE_DIR, "banco de dados", "alimentos_personalizados.csv")
 PRATOS_SALVOS_FILE = os.path.join(BASE_DIR, "banco de dados", "pratos_salvos.json")
 PREFIXO_PRATO = "🍽️ "  # identifica os pratos salvos nas opções do planner
-# Regra do almoço/jantar do plano alimentar: (mín. de opções, máx. de opções)
-REGRAS_PRATO = {
-    "Vegetais": (1, None),
-    "Proteína": (1, 1),
-    "Carboidrato": (1, 1),
-    "Gordura": (0, 1),
-    "Sobremesa": (0, 1),
-}
-DESCRICAO_PRATO = {
-    "Vegetais": "Crus e/ou refogados, à vontade — o plano pede 1 prato de refeição (300 g) no total. "
-                "Milho, batata, grão-de-bico, ervilha e abóbora contam como carboidrato.",
-    "Proteína": "Escolha 1 — no plano, 1 filé médio (120 g) ou 2 ovos.",
-    "Carboidrato": "Escolha 1 — as quantidades são as do plano.",
-    "Gordura": "Opcional — 1 colher de sopa (7,5 ml) de azeite extravirgem.",
-    "Sobremesa": "Opcional — 1 fruta pequena (80 g).",
-}
+def carregar_plano():
+    arquivo = PLANO_FILE if os.path.exists(PLANO_FILE) else PLANO_EXEMPLO_FILE
+    with open(arquivo, "r", encoding="utf-8") as f:
+        plano = json.load(f)
+    plano["arquivo"] = os.path.basename(arquivo)
+    return plano
+
+PLANO = carregar_plano()
+# Espaços do prato com (mín. de opções, máx. de opções); máximo None = à vontade
+REGRAS_PRATO = {e: tuple(v) for e, v in PLANO["regras"].items()}
+DESCRICAO_PRATO = PLANO["descricao"]
 REF_TACO = "TACO – Tabela Brasileira de Composição de Alimentos, 4ª ed. (NEPA/Unicamp, 2011)"
 REF_USDA = ("USDA National Nutrient Database for Standard Reference, Release 28 (SR28) – "
             "U.S. Department of Agriculture, Agricultural Research Service")
 REF_PLANO = "Seu plano alimentar (almoço/jantar) e a prescrição da avaliação nutricional"
 REF_WEBDIET_PRATO = "WebDiet – “Como montar um prato saudável”"
 REF_WEBDIET_EPOCA = "WebDiet – “Frutas e legumes da época”"
-META_VEGETAIS_G = 300
-# Referência da prescrição por refeição (g): carboidrato, proteína, gordura
-META_REFEICAO = {"carb": 30, "prot": 24, "gord": 6}
+META_DIA_KCAL = PLANO.get("metaDiaKcal")  # calorias por dia (None = sem meta)
+AGUA_LITROS = PLANO.get("aguaLitros") or 2.0  # meta de água por dia
+META_VEGETAIS_G = PLANO.get("metaVegetais")  # gramas de vegetais por refeição (None = sem meta)
+# Referência da prescrição por refeição (g): carboidrato, proteína, gordura (None = sem metas)
+META_REFEICAO = PLANO.get("metaRefeicao")
 # Proporção do prato (WebDiet): 50% folhas/vegetais + 15% legumes, 25% proteína, 10% carboidrato
 PROPORCAO_PRATO = {"Vegetais": 65, "Proteína": 25, "Carboidrato": 10}
 # Grupos da TACO que aparecem na busca de cada espaço do prato
@@ -381,13 +381,12 @@ def carregar_alimentos():
 def carregar_opcoes_prato(alimentos):
     """{espaço: [{"id", "gramas", "medida"}]} com as opções do plano + alimentos cadastrados."""
     opcoes = {e: [] for e in REGRAS_PRATO}
-    if os.path.exists(PRATO_OPCOES_FILE):
-        with open(PRATO_OPCOES_FILE, "r", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if row["id"] in alimentos and row["Espaço"] in opcoes:
-                    opcoes[row["Espaço"]].append(
-                        {"id": row["id"], "gramas": float(row["Gramas"]), "medida": row["Medida caseira"]}
-                    )
+    for espaco, lista in PLANO["opcoes"].items():
+        if espaco in opcoes:
+            opcoes[espaco] += [
+                {"id": o["id"], "gramas": float(o["gramas"]), "medida": o.get("medida", "")}
+                for o in lista if o["id"] in alimentos
+            ]
     for id_, a in alimentos.items():
         if a["personalizado"] and a["grupo"] in opcoes:
             opcoes[a["grupo"]].append({"id": id_, "gramas": a["gramas"], "medida": a["medida"]})
@@ -549,7 +548,9 @@ def _texto_referencias():
         f"- **Valores nutricionais:** {REF_TACO}.",
         f"- **Alimentos que não existem na TACO:** {REF_USDA}" + (f" — {'; '.join(usda)}." if usda else "."),
         f"- **Salada, itens sem equivalente na TACO** (valores da sua planilha original): {'; '.join(planilha)}." if planilha else "",
-        f"- **Regras do prato e metas por refeição:** {REF_PLANO} (~30 g de carboidratos, ~24 g de proteínas e ~6 g de gorduras por refeição).",
+        f"- **Regras do prato e metas por refeição:** {REF_PLANO}"
+        + (f" (~{META_REFEICAO['carb']:g} g de carboidratos, ~{META_REFEICAO['prot']:g} g de proteínas e "
+           f"~{META_REFEICAO['gord']:g} g de gorduras por refeição)." if META_REFEICAO else "."),
         f"- **Proporção do prato:** {REF_WEBDIET_PRATO} (50% folhas e vegetais + 15% legumes, 25% proteína, 10% carboidrato).",
         f"- **Selo 🌱:** {REF_WEBDIET_EPOCA}.",
     ]
@@ -575,9 +576,10 @@ def _kcal_do_dia(dia):
 
 # --- BARRA LATERAL ---
 PAGINA_PLANNER, PAGINA_SALADA, PAGINA_PRATO = "🗓️ Planner Semanal", "🥗 Monte sua Salada", "🍽️ Monte seu Prato"
+PAGINA_PESO = "⚖️ Peso e Medidas"
 
 with st.sidebar:
-    pagina = st.radio("Páginas", [PAGINA_PLANNER, PAGINA_SALADA, PAGINA_PRATO], key="pagina")
+    pagina = st.radio("Páginas", [PAGINA_PLANNER, PAGINA_SALADA, PAGINA_PRATO, PAGINA_PESO], key="pagina")
     st.divider()
     st.markdown("## 🥑 Ações")
 
@@ -625,7 +627,8 @@ if pagina == PAGINA_PLANNER:
             # O título precisa ser fixo: se ele mudar (ex.: com as calorias), o Streamlit recria a sanfona fechada
             titulo = f"{'📍 ' if hoje else ''}**{dia}**{' · hoje' if hoje else ''}"
             with st.expander(titulo, expanded=hoje):
-                st.caption(f"Total do dia: **{_kcal_do_dia(dia)} kcal**")
+                kcal_dia = _kcal_do_dia(dia)
+                st.caption(f"Total do dia: **{kcal_dia} kcal**" + (f" de ~{META_DIA_KCAL} kcal do seu plano" if META_DIA_KCAL else ""))
                 # Lógica de seleção de refeições mantida da versão anterior
                 if dia not in st.session_state.selecoes:
                     st.session_state.selecoes[dia] = {}
@@ -661,20 +664,23 @@ if pagina == PAGINA_PLANNER:
 
                 # --- RASTREADOR DE HIDRATAÇÃO VISUAL ---
                 st.divider()
-                st.markdown("💧 **Hidratação** · meta de 2 litros (cada copo = 250 ml)")
+                copos = round(AGUA_LITROS / 0.25)
+                st.markdown(f"💧 **Hidratação** · meta de {AGUA_LITROS:.1f} litros (cada copo = 250 ml)".replace(".", ","))
             
                 # Inicializa o estado do contador de água para o dia
                 if f"agua_checked_{dia}" not in st.session_state:
                     st.session_state[f"agua_checked_{dia}"] = 0
             
-                water_cols = st.columns(8)
                 num_checked = 0
-                for j in range(8):
-                    if water_cols[j].checkbox("🥛", key=f"agua_{dia}_{j}"):
-                        num_checked += 1
+                for inicio in range(0, copos, 8):
+                    water_cols = st.columns(8)
+                    for j in range(inicio, min(inicio + 8, copos)):
+                        if water_cols[j - inicio].checkbox("🥛", key=f"agua_{dia}_{j}"):
+                            num_checked += 1
             
                 litros_consumidos = num_checked * 0.250
-                st.progress(litros_consumidos / 2.0, text=f"{litros_consumidos:.2f} de 2,00 litros")
+                st.progress(min(litros_consumidos / AGUA_LITROS, 1.0),
+                            text=f"{litros_consumidos:.2f} de {AGUA_LITROS:.2f} litros".replace(".", ","))
 
     with main_cols[1]:
         with st.container(border=True):
@@ -1155,6 +1161,9 @@ if pagina == PAGINA_PRATO:
 
     with prato_cols[0]:
         st.subheader("Monte seu prato")
+        if PLANO["arquivo"] == os.path.basename(PLANO_EXEMPLO_FILE):
+            st.info("Você está usando o **plano de exemplo** (genérico). Carregue o seu `meu_plano.json` "
+                    "em **📄 Meu plano alimentar**, no fim da página, para usar as regras e quantidades da sua nutri.")
         st.caption(
             "Baseado no almoço/jantar do seu plano alimentar. As quantidades já vêm do plano — ajuste os gramas "
             "se quiser. Valores nutricionais da TACO (os que não existem nela vêm da USDA). 🌱 = da época neste mês."
@@ -1169,8 +1178,8 @@ if pagina == PAGINA_PRATO:
                 cab[0].markdown(f"#### {passo}. {espaco}")
                 if espaco == "Vegetais":
                     gramas_veg = sum(st.session_state.get(_g_prato(espaco, o["id"]), o["gramas"]) for o in marcados)
-                    contador = f"{gramas_veg:.0f}/{META_VEGETAIS_G} g"
-                    completo = gramas_veg >= META_VEGETAIS_G
+                    contador = f"{gramas_veg:.0f}/{META_VEGETAIS_G} g" if META_VEGETAIS_G else f"{gramas_veg:.0f} g"
+                    completo = gramas_veg >= META_VEGETAIS_G if META_VEGETAIS_G else bool(marcados)
                 else:
                     contador = f"{len(marcados)}/{maximo}"
                     completo = minimo <= len(marcados)
@@ -1205,7 +1214,7 @@ if pagina == PAGINA_PRATO:
                             key=chave_g, label_visibility="collapsed",
                         )
 
-                if espaco == "Vegetais" and marcados:
+                if espaco == "Vegetais" and marcados and META_VEGETAIS_G:
                     st.progress(min(gramas_veg / META_VEGETAIS_G, 1.0), text=f"{gramas_veg:.0f} de {META_VEGETAIS_G} g de vegetais")
                     st.button(f"Dividir {META_VEGETAIS_G} g igualmente entre os vegetais", on_click=_dividir_vegetais)
 
@@ -1244,11 +1253,12 @@ if pagina == PAGINA_PRATO:
             m3.metric("Gordura", f"{t['gord']:.0f} g")
 
             if itens_prato:
-                st.markdown("**Referência do seu plano por refeição**")
-                for chave, rotulo in (("carb", "Carbo"), ("prot", "Proteína"), ("gord", "Gordura")):
-                    meta = META_REFEICAO[chave]
-                    st.progress(min(t[chave] / meta, 1.0), text=f"{rotulo}: {t[chave]:.0f} g de ~{meta} g")
-                st.caption("É só uma referência: algumas refeições ficam acima e outras abaixo, e tudo bem.")
+                if META_REFEICAO:
+                    st.markdown("**Referência do seu plano por refeição**")
+                    for chave, rotulo in (("carb", "Carbo"), ("prot", "Proteína"), ("gord", "Gordura")):
+                        meta = META_REFEICAO[chave]
+                        st.progress(min(t[chave] / meta, 1.0), text=f"{rotulo}: {t[chave]:.0f} g de ~{meta:g} g")
+                    st.caption("É só uma referência: algumas refeições ficam acima e outras abaixo, e tudo bem.")
 
                 peso = {e: sum(i["gramas"] for i in itens_prato if i["espaco"] == e) for e in PROPORCAO_PRATO}
                 peso_total = sum(peso.values())
@@ -1285,6 +1295,22 @@ if pagina == PAGINA_PRATO:
             b1.button("Salvar", key="prato_salvar", on_click=_salvar_prato, type="primary", use_container_width=True)
             b2.button("Limpar escolhas", key="prato_limpar", on_click=_limpar_prato, use_container_width=True)
             st.caption("Salvar com um nome que já existe substitui o prato.")
+
+        with st.expander("📄 Meu plano alimentar"):
+            st.caption(f"Em uso: **{PLANO.get('nome', PLANO['arquivo'])}** ({PLANO['arquivo']}). "
+                       "O seu plano fica só no seu computador, fora do GitHub.")
+            novo_plano = st.file_uploader("Carregar outro plano (.json)", type=["json"], key="plano_upload")
+            if novo_plano is not None and st.button("Usar este plano", key="plano_usar"):
+                try:
+                    dados_plano = json.loads(novo_plano.getvalue().decode("utf-8"))
+                    assert set(dados_plano["regras"]) == set(GRUPOS_TACO_PRATO) and "opcoes" in dados_plano
+                except Exception:
+                    st.error("Arquivo de plano inválido.")
+                else:
+                    with open(PLANO_FILE, "w", encoding="utf-8") as f:
+                        json.dump(dados_plano, f, ensure_ascii=False, indent=2)
+                    st.toast("Plano carregado!", icon="✅")
+                    st.rerun()
 
         with st.expander("➕ Cadastrar alimento que não está na TACO"):
             st.caption("Informe os valores por 100 g (do rótulo ou de outra tabela).")
@@ -1343,6 +1369,195 @@ if pagina == PAGINA_PRATO:
             acoes = st.columns(2)
             acoes[0].button("✏️ Carregar para editar", key=f"{chave}_load", on_click=_carregar_prato, args=(nome,), use_container_width=True)
             acoes[1].button("🗑️ Excluir", key=f"{chave}_del", on_click=_excluir_prato, args=(nome,), use_container_width=True)
+
+
+# --- PÁGINA: PESO E MEDIDAS ---
+MEDIDAS_FILE = os.path.join(BASE_DIR, "banco de dados", "medidas.csv")
+BIOIMPEDANCIA_FILE = os.path.join(BASE_DIR, "banco de dados", "bioimpedancia.csv")
+# (coluna, unidade)
+CAMPOS_MEDIDAS = [
+    ("Peso", "kg"), ("Braço direito", "cm"), ("Costas", "cm"),
+    ("Cintura", "cm"), ("Quadril", "cm"), ("Coxa", "cm"),
+]
+CAMPOS_BIOIMPEDANCIA = [
+    ("Peso", "kg"), ("IMC", ""), ("Gordura corporal", "%"), ("Taxa muscular", "%"),
+    ("Massa corporal magra", "kg"), ("Gordura subcutânea", "%"), ("Gordura visceral", ""),
+    ("Água corporal", "%"), ("Músculo esquelético", "%"), ("Massa muscular", "kg"),
+    ("Massa óssea", "kg"), ("Proteína", "%"), ("Taxa metabólica basal", "kcal"),
+    ("Idade do corpo", "anos"), ("Massa gorda", "kg"), ("Peso da água", "kg"),
+    ("Massa de proteína", "kg"), ("Peso corporal ideal", "kg"),
+]
+
+def _rotulo(campo, unidade):
+    return f"{campo} ({unidade})" if unidade else campo
+
+def _carregar_registros(arquivo, colunas):
+    df = pd.read_csv(arquivo, encoding="utf-8") if os.path.exists(arquivo) else pd.DataFrame(columns=colunas)
+    for c in colunas:
+        if c not in df.columns:
+            df[c] = None
+    df = df[colunas]
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
+    return df.sort_values("Data").reset_index(drop=True)
+
+def _salvar_registros(df, arquivo):
+    df = df.dropna(subset=["Data"]).sort_values("Data")
+    df.to_csv(arquivo, index=False, encoding="utf-8")
+
+def _adicionar_registro(arquivo, colunas, registro):
+    df = _carregar_registros(arquivo, colunas)
+    df = df[df["Data"] != registro["Data"]]  # um registro por dia: substitui o do mesmo dia
+    df = pd.concat([df, pd.DataFrame([registro])], ignore_index=True)
+    _salvar_registros(df, arquivo)
+
+COLUNAS_MEDIDAS = ["Data"] + [_rotulo(c, u) for c, u in CAMPOS_MEDIDAS]
+COLUNAS_BIO = ["Data"] + [_rotulo(c, u) for c, u in CAMPOS_BIOIMPEDANCIA] + ["Tipo de corpo"]
+
+def _salvar_medidas():
+    registro = {"Data": st.session_state.med_data}
+    for c, u in CAMPOS_MEDIDAS:
+        v = st.session_state.get(f"med_{c}")
+        registro[_rotulo(c, u)] = v if v else None
+    if all(registro[k] is None for k in COLUNAS_MEDIDAS[1:]):
+        st.toast("Preencha pelo menos um valor.", icon="⚠️")
+        return
+    _adicionar_registro(MEDIDAS_FILE, COLUNAS_MEDIDAS, registro)
+    for c, _ in CAMPOS_MEDIDAS:
+        st.session_state[f"med_{c}"] = None
+    st.toast(f"Medidas de {registro['Data']:%d/%m/%Y} salvas!", icon="✅")
+
+def _salvar_bio():
+    registro = {"Data": st.session_state.bio_data}
+    for c, u in CAMPOS_BIOIMPEDANCIA:
+        v = st.session_state.get(f"bio_{c}")
+        registro[_rotulo(c, u)] = v if v else None
+    registro["Tipo de corpo"] = st.session_state.get("bio_tipo", "").strip() or None
+    if all(registro[k] is None for k in COLUNAS_BIO[1:]):
+        st.toast("Preencha pelo menos um valor.", icon="⚠️")
+        return
+    _adicionar_registro(BIOIMPEDANCIA_FILE, COLUNAS_BIO, registro)
+    for c, _ in CAMPOS_BIOIMPEDANCIA:
+        st.session_state[f"bio_{c}"] = None
+    st.session_state.bio_tipo = ""
+    st.toast(f"Bioimpedância de {registro['Data']:%d/%m/%Y} salva!", icon="✅")
+
+def _grafico_tendencia(df, coluna, titulo_y):
+    """Pontos + linha dos registros + linha de tendência (regressão linear)."""
+    import altair as alt
+    dados = df[["Data", coluna]].dropna().copy()
+    dados["Data"] = pd.to_datetime(dados["Data"])
+    base = alt.Chart(dados).encode(
+        x=alt.X("Data:T", title=None, axis=alt.Axis(format="%d/%m")),
+        y=alt.Y(f"{coluna}:Q", title=titulo_y, scale=alt.Scale(zero=False)),
+        tooltip=[alt.Tooltip("Data:T", format="%d/%m/%Y"), alt.Tooltip(f"{coluna}:Q", format=".1f")],
+    )
+    linha = base.mark_line(color="#2F8F5B", point=alt.OverlayMarkDef(color="#2F8F5B", size=60))
+    camadas = [linha]
+    if len(dados) >= 2:
+        tendencia = base.transform_regression("Data", coluna).mark_line(color="#E07A2E", strokeDash=[6, 4])
+        camadas.append(tendencia)
+    st.altair_chart(alt.layer(*camadas).properties(height=320), use_container_width=True)
+    if len(dados) >= 2:
+        dias = (dados["Data"] - dados["Data"].min()).dt.days
+        if dias.max() > 0:
+            inclinacao = pd.Series(dados[coluna].values).cov(pd.Series(dias.values)) / pd.Series(dias.values).var()
+            st.caption(f"Tendência (linha laranja tracejada): **{inclinacao * 7:+.2f} por semana**")
+
+def _editor_historico(df, arquivo, chave, colunas_numericas):
+    """Tabela editável do histórico (editar valores ou excluir linhas) + botão de salvar."""
+    config = {"Data": st.column_config.DateColumn(format="DD/MM/YYYY", required=True)}
+    for c in colunas_numericas:
+        config[c] = st.column_config.NumberColumn(min_value=0.0, format="%.1f")
+    if f"{chave}_versao" not in st.session_state:
+        st.session_state[f"{chave}_versao"] = 0
+    editado = st.data_editor(
+        df, num_rows="dynamic", hide_index=True, use_container_width=True,
+        column_config=config, key=f"{chave}_{st.session_state[f'{chave}_versao']}",
+    )
+    if st.button("💾 Salvar alterações do histórico", key=f"{chave}_salvar"):
+        _salvar_registros(editado, arquivo)
+        st.session_state[f"{chave}_versao"] += 1
+        st.toast("Histórico atualizado!", icon="✅")
+        st.rerun()
+
+if pagina == PAGINA_PESO:
+    medidas = _carregar_registros(MEDIDAS_FILE, COLUNAS_MEDIDAS)
+    bio = _carregar_registros(BIOIMPEDANCIA_FILE, COLUNAS_BIO)
+
+    st.subheader("Peso e medidas")
+    aba_med, aba_bio = st.tabs(["📏 Medidas e peso", "🔬 Bioimpedância"])
+
+    with aba_med:
+        col_form, col_graf = st.columns([1, 1.6], gap="large")
+        with col_form, st.container(border=True):
+            st.markdown("#### ➕ Novo registro")
+            st.date_input("Data", value=datetime.now().date(), format="DD/MM/YYYY", key="med_data")
+            for c, u in CAMPOS_MEDIDAS:
+                st.number_input(_rotulo(c, u), min_value=0.0, step=0.1, format="%.1f", value=None,
+                                placeholder="—", key=f"med_{c}")
+            st.button("Salvar medidas", on_click=_salvar_medidas, type="primary", use_container_width=True)
+            st.caption("Pode deixar em branco o que não mediu. Salvar de novo no mesmo dia substitui o registro.")
+
+        # Peso: junta o das medidas e o da bioimpedância (no mesmo dia, vale o das medidas)
+        peso = pd.concat([
+            medidas[["Data", "Peso (kg)"]],
+            bio[["Data", "Peso (kg)"]],
+        ]).dropna().drop_duplicates(subset="Data", keep="first").sort_values("Data")
+
+        with col_graf:
+            st.markdown("#### 📉 Tendência do peso")
+            if peso.empty:
+                st.info("Registre seu peso para ver o gráfico.")
+            else:
+                ultimo, primeiro = peso.iloc[-1], peso.iloc[0]
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Peso atual", f"{ultimo['Peso (kg)']:.1f} kg")
+                m2.metric("Desde o início", f"{ultimo['Peso (kg)'] - primeiro['Peso (kg)']:+.1f} kg")
+                m3.metric("Registros", len(peso))
+                _grafico_tendencia(peso, "Peso (kg)", "Peso (kg)")
+
+            colunas_cm = [_rotulo(c, u) for c, u in CAMPOS_MEDIDAS if u == "cm"]
+            com_dados = [c for c in colunas_cm if medidas[c].notna().any()]
+            if com_dados:
+                st.markdown("#### 📏 Evolução das medidas")
+                escolha = st.selectbox("Medida", com_dados, key="med_grafico")
+                _grafico_tendencia(medidas, escolha, escolha)
+
+        st.markdown("#### 📋 Histórico de medidas")
+        if medidas.empty:
+            st.caption("Nenhum registro ainda.")
+        else:
+            _editor_historico(medidas, MEDIDAS_FILE, "hist_med", COLUNAS_MEDIDAS[1:])
+
+    with aba_bio:
+        col_form, col_img = st.columns([1.4, 1], gap="large")
+        with col_img:
+            st.markdown("#### 🖼️ Print da balança")
+            imagem = st.file_uploader("Anexe o print para consultar enquanto digita", type=["png", "jpg", "jpeg"],
+                                      key="bio_imagem")
+            if imagem:
+                st.image(imagem, use_container_width=True)
+            st.caption("A imagem é só para consulta e não é salva.")
+        with col_form, st.container(border=True):
+            st.markdown("#### ➕ Nova bioimpedância")
+            st.date_input("Data", value=datetime.now().date(), format="DD/MM/YYYY", key="bio_data")
+            campos = st.columns(2)
+            for i, (c, u) in enumerate(CAMPOS_BIOIMPEDANCIA):
+                campos[i % 2].number_input(_rotulo(c, u), min_value=0.0, step=0.1, format="%.1f", value=None,
+                                           placeholder="—", key=f"bio_{c}")
+            st.text_input("Tipo de corpo", key="bio_tipo", placeholder="Ex.: Padrão, Musculoso, Gordura oculta…")
+            st.button("Salvar bioimpedância", on_click=_salvar_bio, type="primary", use_container_width=True)
+            st.caption("Salvar de novo no mesmo dia substitui o registro.")
+
+        if not bio.empty:
+            st.markdown("#### 📈 Evolução")
+            numericas = [_rotulo(c, u) for c, u in CAMPOS_BIOIMPEDANCIA]
+            com_dados = [c for c in numericas if bio[c].notna().any()]
+            if com_dados:
+                escolha = st.selectbox("Indicador", com_dados, key="bio_grafico")
+                _grafico_tendencia(bio, escolha, escolha)
+            st.markdown("#### 📋 Histórico de bioimpedância")
+            _editor_historico(bio, BIOIMPEDANCIA_FILE, "hist_bio", numericas)
 
 
 # --- SALVAMENTO AUTOMÁTICO DO PLANNER ---

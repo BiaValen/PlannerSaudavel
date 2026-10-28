@@ -1,0 +1,398 @@
+{
+  "nome": "Plano de exemplo (genérico)",
+  "metaRefeicao": null,
+  "metaVegetais": null,
+  "regras": {
+    "Vegetais": [
+      1,
+      null
+    ],
+    "Proteína": [
+      1,
+      1
+    ],
+    "Carboidrato": [
+      1,
+      1
+    ],
+    "Gordura": [
+      0,
+      1
+    ],
+    "Sobremesa": [
+      0,
+      1
+    ]
+  },
+  "descricao": {
+    "Vegetais": "Escolha à vontade.",
+    "Proteína": "Escolha 1.",
+    "Carboidrato": "Escolha 1.",
+    "Gordura": "Opcional.",
+    "Sobremesa": "Opcional — 1 fruta."
+  },
+  "opcoes": {
+    "Vegetais": [
+      {
+        "id": "78",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "77",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "157",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "152",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "95",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "142",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "112",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "72",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "110",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "109",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "147",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "100",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "118",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "149",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "150",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "98",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "97",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "127",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "139",
+        "gramas": 100.0,
+        "medida": ""
+      }
+    ],
+    "Proteína": [
+      {
+        "id": "410",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "377",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "351",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "349",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "368",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "358",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "363",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "301",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "317",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "432",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "435",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "488",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "461",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "469",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U13454",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U15121",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U10061",
+        "gramas": 100.0,
+        "medida": ""
+      }
+    ],
+    "Carboidrato": [
+      {
+        "id": "3",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "1",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "91",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "88",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "86",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "129",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "64",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "577",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "561",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "567",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "560",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U20121",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U16057",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U11363",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "U11657",
+        "gramas": 100.0,
+        "medida": ""
+      }
+    ],
+    "Gordura": [
+      {
+        "id": "260",
+        "gramas": 100.0,
+        "medida": ""
+      }
+    ],
+    "Sobremesa": [
+      {
+        "id": "226",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "225",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "256",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "239",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "242",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "235",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "236",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "222",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "164",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "251",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "182",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "214",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "200",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "231",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "172",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "244",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "189",
+        "gramas": 100.0,
+        "medida": ""
+      },
+      {
+        "id": "207",
+        "gramas": 100.0,
+        "medida": ""
+      }
+    ]
+  },
+  "metaDiaKcal": null,
+  "aguaLitros": 2.0
+}
