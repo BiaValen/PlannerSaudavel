@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#EEEBFB">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Planner Saudável</title>
+  <script>
+    // Aplica o tema salvo antes de desenhar a página (evita piscar claro→escuro)
+    try { if (JSON.parse(localStorage.getItem("plannerSaudavel.v1") || "{}").tema === "escuro") document.documentElement.dataset.theme = "dark"; } catch (e) {}
+  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icone.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icone.svg">

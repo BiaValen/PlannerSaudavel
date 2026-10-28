@@ -40,6 +40,10 @@ function estadoInicial() {
     bio: [],                // [{data, peso, imc, ..., tipo}]
     rascunho: { salada: {}, prato: {}, extras: {} },
     plano: null,            // plano alimentar carregado de meu_plano.json (fica só no aparelho)
+    perfil: {},             // {nome, nascimento, altura (cm), pesoMeta (kg)}
+    tema: "claro",          // "claro" | "escuro"
+    treinos: [],            // [{id, data, tipo, min, intensidade, obs}]
+    tiposTreino: [],        // tipos de exercício que você cadastrou
   };
 }
 let armazenamentoOk = true;
@@ -58,7 +62,7 @@ function salvar() {
   catch (e) { armazenamentoOk = false; }
 }
 
-// Plano alimentar em uso: o que você carregou no aparelho (💾) ou o de exemplo, genérico
+// Plano alimentar em uso: o que você carregou no aparelho (Perfil → Backup) ou o de exemplo, genérico
 const plano = () => S.plano || D.planoExemplo;
 function planoValido(p) {
   return p && typeof p === "object" && p.regras && p.opcoes && p.descricao
@@ -135,6 +139,9 @@ const ICONES = {
   livro: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v14H6a2 2 0 0 0-2 2.5 2 2 0 0 0 2 2h14"/>',
   documento: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
   busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  pessoa: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  haltere: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
   recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
 };
 function ic(nome, classe = "ic") {
@@ -358,13 +365,14 @@ function regressao(pontos) {
   const a = sxx ? sxy / sxx : 0;
   return { a, b: my - a * mx };
 }
-function grafico(registros, chave, unidade) {
+function grafico(registros, chave, unidade, meta = null) {
   const dados = registros.filter((r) => r[chave] != null && r.data)
     .map((r) => ({ data: r.data, x: Date.parse(r.data) / 864e5, y: r[chave] })).sort((p, q) => p.x - q.x);
   if (!dados.length) return h("p", { class: "vazio" }, "Sem registros ainda.");
   const L = 340, A = 180, me = 38, md = 10, mt = 10, mb = 24;
   const xs = dados.map((p) => p.x), ys = dados.map((p) => p.y);
   let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x0 === x1) { x0 -= 1; x1 += 1; }
+  if (meta != null) ys.push(meta);
   let y0 = Math.min(...ys), y1 = Math.max(...ys); const folga = (y1 - y0) * 0.15 || 1; y0 -= folga; y1 += folga;
   const px = (x) => me + (x - x0) / (x1 - x0) * (L - me - md);
   const py = (y) => mt + (1 - (y - y0) / (y1 - y0)) * (A - mt - mb);
@@ -379,6 +387,10 @@ function grafico(registros, chave, unidade) {
   for (const [p, ancora] of [[dados[0], "start"], [dados[dados.length - 1], "end"]]) {
     const t = s("text", { x: px(p.x), y: A - 6, "text-anchor": dados.length === 1 ? "middle" : ancora, class: "eixo" });
     t.textContent = dataBR(p.data).slice(0, 5); svg.append(t);
+  }
+  if (meta != null) {
+    svg.append(s("line", { x1: me, x2: L - md, y1: py(meta), y2: py(meta), class: "linha-alvo" }));
+    const t = s("text", { x: L - md, y: py(meta) - 5, "text-anchor": "end", class: "eixo alvo" }); t.textContent = `meta ${fmt(meta, 1)}`; svg.append(t);
   }
   let rodape = null;
   if (dados.length >= 2) {
@@ -453,6 +465,7 @@ function telaSemana() {
         onclick: () => { S.agua[dia] = i < copos && i === copos - 1 ? i : i + 1; atualizar(); },
       }, ic("gota")))),
       barra(copos, totalCopos)),
+    cartaoTreino(),
     h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, titulo("grafico", "Calorias da semana", "rosa"), h("span", { class: "suave" }, "toque num dia")),
       graficoSemana(metaKcal)),
@@ -520,6 +533,127 @@ const ILUSTRACAO = `<svg viewBox="0 0 160 130" aria-hidden="true">
   <path d="M28 14l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#FFC94D"/>
   <path d="M146 64l2 4.5 4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2Z" fill="#FFC94D"/>
 </svg>`;
+/* ---------- Exercício: registro e streak semanal ---------- */
+// Meta do plano: pelo menos 3 treinos de 20 min por semana (semana de segunda a domingo)
+const META_TREINOS = 3, MIN_TREINO = 20;
+const TIPOS_TREINO = ["Academia", "Caminhada", "Dança", "Pilates", "Yoga", "Alongamento", "Funcional", "Luta", "Esporte"];
+const INTENSIDADES = ["Leve", "Moderada", "Intensa"];
+const formTreino = { data: hojeISO(), tipo: "Academia", min: 30, intensidade: "Moderada", obs: "" };
+const dataLocal = (iso) => new Date(iso + "T12:00");
+const isoDe = (d) => { const c = new Date(d); c.setMinutes(c.getMinutes() - c.getTimezoneOffset()); return c.toISOString().slice(0, 10); };
+function segundaDe(iso) {
+  const d = dataLocal(iso);
+  d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  return isoDe(d);
+}
+function somarDias(iso, n) { const d = dataLocal(iso); d.setDate(d.getDate() + n); return isoDe(d); }
+const contaNaMeta = (t) => (t.min || 0) >= MIN_TREINO;
+function treinosPorSemana() {
+  const semanas = {};
+  for (const t of S.treinos) if (contaNaMeta(t)) { const k = segundaDe(t.data); semanas[k] = (semanas[k] || 0) + 1; }
+  return semanas;
+}
+// Semanas seguidas batendo a meta. A semana atual só entra quando já bateu;
+// enquanto ainda não bateu, ela não quebra o streak das semanas anteriores.
+function streakSemanas() {
+  const semanas = treinosPorSemana();
+  let k = segundaDe(hojeISO()), n = 0;
+  if ((semanas[k] || 0) < META_TREINOS) k = somarDias(k, -7);
+  while ((semanas[k] || 0) >= META_TREINOS) { n++; k = somarDias(k, -7); }
+  return n;
+}
+function cartaoTreino() {
+  const seg = segundaDe(hojeISO());
+  const daSemana = S.treinos.filter((t) => segundaDe(t.data) === seg);
+  const validos = daSemana.filter(contaNaMeta).length;
+  const streak = streakSemanas();
+  const recentes = S.treinos.slice().sort((a, b) => b.data.localeCompare(a.data)).slice(0, 3);
+  return h("div", { class: "cartao" },
+    h("div", { class: "linha entre" }, titulo("haltere", "Exercício", "verde"),
+      h("span", { class: "selo" + (validos >= META_TREINOS ? "" : " pendente") }, `${Math.min(validos, META_TREINOS)}/${META_TREINOS} na semana`)),
+    h("div", { class: "streak" },
+      h("span", { class: "streak-fogo" + (streak ? "" : " apagado") }, ic("fogo")),
+      h("div", { class: "cresce" },
+        h("div", { class: "streak-num" }, streak === 1 ? "1 semana" : `${streak} semanas`),
+        h("div", { class: "suave" }, streak ? "seguidas batendo a meta" : `Faça ${META_TREINOS} treinos de ${MIN_TREINO} min nesta semana para começar`))),
+    h("div", { class: "dias-treino" }, D.dias.map((d, i) => {
+      const iso = somarDias(seg, i);
+      const fez = daSemana.some((t) => t.data === iso);
+      return h("div", { class: "dia-treino" + (fez ? " feito" : "") + (iso === hojeISO() ? " hoje" : "") },
+        h("span", { class: "bolinha" }, fez ? ic("haltere") : null), d.slice(0, 3));
+    })),
+    barra(Math.min(validos, META_TREINOS), META_TREINOS),
+    h("p", { class: "suave", style: "margin:0 0 10px" }, `Meta do plano: ${META_TREINOS} treinos de pelo menos ${MIN_TREINO} min por semana (segunda a domingo).`),
+    recentes.length ? h("ul", { class: "lista" }, recentes.map(linhaTreino)) : null,
+    h("div", { class: "grade2", style: "margin-top:10px" },
+      h("button", { class: "btn primario", onclick: () => { formTreino.data = hojeISO(); abrirModal(modalTreino); } }, ic("mais"), "Registrar"),
+      h("button", { class: "btn", onclick: () => abrirModal(modalHistoricoTreinos), disabled: !S.treinos.length }, ic("lista"), "Histórico")));
+}
+function linhaTreino(t) {
+  return h("li", {},
+    h("span", { class: "cresce" },
+      h("b", {}, t.tipo), ` · ${dataBR(t.data).slice(0, 5)}`,
+      h("div", { class: "suave" }, [t.min ? `${t.min} min` : null, t.intensidade, t.obs].filter(Boolean).join(" · "))),
+    h("button", { class: "btn perigo icone", "aria-label": `Excluir treino de ${dataBR(t.data)}`, onclick: () => {
+      if (confirm(`Excluir o treino de ${t.tipo} em ${dataBR(t.data)}?`)) { S.treinos.splice(S.treinos.indexOf(t), 1); atualizar(); }
+    } }, ic("lixeira")));
+}
+function modalHistoricoTreinos() {
+  const lista = S.treinos.slice().sort((a, b) => b.data.localeCompare(a.data));
+  const porTipo = {};
+  for (const t of S.treinos) porTipo[t.tipo] = (porTipo[t.tipo] || 0) + 1;
+  return [
+    titulo("lista", "Histórico de treinos", "verde", "h2"),
+    lista.length ? [
+      h("p", { class: "suave" }, `${lista.length} treino${lista.length > 1 ? "s" : ""}: `,
+        Object.entries(porTipo).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(" · "), "."),
+      h("ul", { class: "lista" }, lista.map(linhaTreino))]
+      : h("p", { class: "vazio" }, "Nenhum treino registrado ainda."),
+    h("button", { class: "btn bloco", style: "margin-top:12px", onclick: fecharModal }, "Fechar"),
+  ];
+}
+function modalTreino() {
+  const F = formTreino;
+  const tipos = [...TIPOS_TREINO, ...S.tiposTreino];
+  return [
+    titulo("haltere", "Registrar treino", "verde", "h2"),
+    h("label", { class: "campo" }, h("span", {}, "Data"),
+      h("input", { id: "treino-data", type: "date", value: F.data, max: hojeISO(), onchange: (e) => { F.data = e.target.value; } })),
+    h("div", { class: "campo" }, h("span", {}, "Tipo"),
+      h("div", { class: "tipos" }, tipos.map((t) => h("button", {
+        class: "chip" + (F.tipo === t ? " ativo" : ""), "aria-pressed": String(F.tipo === t),
+        onclick: () => { F.tipo = t; render(); } }, t)))),
+    h("div", { class: "linha" },
+      h("input", { id: "treino-novo-tipo", class: "entrada cresce", placeholder: "Outro tipo (ex.: Natação)" }),
+      h("button", { class: "btn", onclick: () => {
+        const campo = document.getElementById("treino-novo-tipo");
+        const novo = campo.value.trim();
+        if (!novo) return toast("Escreva o nome do tipo.");
+        if (!tipos.some((t) => t.toLowerCase() === novo.toLowerCase())) S.tiposTreino.push(novo);
+        F.tipo = tipos.find((t) => t.toLowerCase() === novo.toLowerCase()) || novo;
+        atualizar();
+      } }, ic("mais"), "Adicionar")),
+    h("label", { class: "campo" }, h("span", {}, "Duração (min)"),
+      h("input", { id: "treino-min", type: "number", inputMode: "numeric", min: "1", step: "5", value: F.min ?? "",
+        onchange: (e) => { const v = parseInt(e.target.value, 10); F.min = v > 0 ? v : null; } })),
+    h("div", { class: "campo" }, h("span", {}, "Intensidade"),
+      h("div", { class: "alternador tres", role: "radiogroup", "aria-label": "Intensidade" }, INTENSIDADES.map((n) =>
+        h("button", { class: F.intensidade === n ? "ativo" : "", role: "radio", "aria-checked": String(F.intensidade === n),
+          onclick: () => { F.intensidade = n; render(); } }, n)))),
+    h("label", { class: "campo" }, h("span", {}, "Observação (opcional)"),
+      h("input", { id: "treino-obs", value: F.obs, placeholder: "Ex.: treino de perna", oninput: (e) => { F.obs = e.target.value; } })),
+    h("button", { class: "btn primario bloco", style: "margin-top:8px", onclick: () => {
+      if (!F.data) return toast("Escolha a data.");
+      if (!F.min) return toast("Informe a duração em minutos.");
+      S.treinos.push({ id: Date.now().toString(36), data: F.data, tipo: F.tipo, min: F.min, intensidade: F.intensidade, obs: F.obs.trim() || null });
+      F.obs = "";
+      UI.modal = null; atualizar();
+      toast(F.min >= MIN_TREINO ? "Treino registrado!" : `Treino registrado. Para contar na meta, precisa de ${MIN_TREINO} min ou mais.`);
+    } }, "Salvar treino"),
+    h("button", { class: "btn bloco", style: "margin-top:8px", onclick: fecharModal }, "Cancelar"),
+  ];
+}
+
 function modalCompras() {
   const itens = listaCompras();
   const texto = itens.map((i) => `☐ ${fmt(i.qtd, i.qtd % 1 ? 1 : 0)} ${i.unidade} de ${i.nome}`).join("\n");
@@ -680,7 +814,7 @@ function telaPrato() {
   const pesoTotal = Object.values(peso).reduce((s, g) => s + g, 0);
   return [
     !S.plano ? h("div", { class: "aviso" }, "Você está usando o ", h("b", {}, "plano de exemplo"),
-      " (genérico, 100 g de cada). Toque no botão de backup, no topo, e carregue o seu ", h("b", {}, "meu_plano.json"),
+      " (genérico, 100 g de cada). Toque no seu perfil (círculo no topo) → Backup e plano alimentar, e carregue o seu ", h("b", {}, "meu_plano.json"),
       " para usar as regras e quantidades da sua nutri.") : null,
     h("p", { class: "suave" }, `Plano: ${plano().nome}. Ajuste os gramas se quiser. 🌱 = da época.`),
     passos,
@@ -786,25 +920,41 @@ function historico(lista, campos, extra = []) {
       if (confirm(`Excluir o registro de ${dataBR(r.data)}?`)) { lista.splice(lista.indexOf(r), 1); atualizar(); }
     } }, ic("lixeira")))));
 }
+// Peso: junta medidas e bioimpedância (no mesmo dia, vale o das medidas)
+function seriePeso() {
+  const pesos = {};
+  for (const r of S.bio) if (r.peso != null) pesos[r.data] = r.peso;
+  for (const r of S.medidas) if (r.peso != null) pesos[r.data] = r.peso;
+  return Object.entries(pesos).map(([data, peso]) => ({ data, peso })).sort((a, b) => a.data.localeCompare(b.data));
+}
+function faltaMeta(atual, meta) {
+  const d = atual - meta;
+  return Math.abs(d) < 0.05 ? "na meta!" : `${d > 0 ? "−" : "+"}${fmt(Math.abs(d), 1)} kg`;
+}
+function idade(iso) {
+  if (!iso) return null;
+  const n = new Date(iso + "T12:00"), h0 = new Date();
+  let a = h0.getFullYear() - n.getFullYear();
+  if (h0.getMonth() < n.getMonth() || (h0.getMonth() === n.getMonth() && h0.getDate() < n.getDate())) a--;
+  return a >= 0 && a < 130 ? a : null;
+}
 function telaPeso() {
   const abas = h("div", { class: "chips" },
     [["medidas", "regua", "Medidas e peso"], ["bio", "alvo", "Bioimpedância"]].map(([k, icone, r]) =>
       h("button", { class: "chip" + (UI.abaPeso === k ? " ativo" : ""), onclick: () => { UI.abaPeso = k; render(); } }, ic(icone), r)));
   if (UI.abaPeso === "medidas") {
-    // Peso: junta medidas e bioimpedância (no mesmo dia, vale o das medidas)
-    const pesos = {};
-    for (const r of S.bio) if (r.peso != null) pesos[r.data] = r.peso;
-    for (const r of S.medidas) if (r.peso != null) pesos[r.data] = r.peso;
-    const serie = Object.entries(pesos).map(([data, peso]) => ({ data, peso })).sort((a, b) => a.data.localeCompare(b.data));
+    const serie = seriePeso();
+    const meta = S.perfil.pesoMeta;
     const comMedida = CAMPOS_MEDIDAS.filter(([k, , u]) => u === "cm" && S.medidas.some((r) => r[k] != null));
     if (comMedida.length && !comMedida.some(([k]) => k === escolhaGrafico.medida)) escolhaGrafico.medida = comMedida[0][0];
     return [abas,
       h("div", { class: "cartao" },
         titulo("grafico", "Tendência do peso", "rosa"),
         serie.length ? h("div", { class: "metricas" },
-          [["Atual", `${fmt(serie.at(-1).peso, 1)} kg`], ["Desde o início", `${serie.at(-1).peso - serie[0].peso >= 0 ? "+" : ""}${fmt(serie.at(-1).peso - serie[0].peso, 1)} kg`], ["Registros", serie.length]]
+          [["Atual", `${fmt(serie.at(-1).peso, 1)} kg`], ["Desde o início", `${serie.at(-1).peso - serie[0].peso >= 0 ? "+" : ""}${fmt(serie.at(-1).peso - serie[0].peso, 1)} kg`],
+            meta ? ["Para a meta", faltaMeta(serie.at(-1).peso, meta)] : ["Registros", serie.length]]
             .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v)))) : null,
-        grafico(serie, "peso", "kg")),
+        grafico(serie, "peso", "kg", meta || null)),
       h("div", { class: "cartao" },
         titulo("mais", "Novo registro", "lilas"),
         h("label", { class: "campo" }, h("span", {}, "Data"), h("input", { type: "date", value: formMedidas.data, onchange: (e) => { formMedidas.data = e.target.value; } })),
@@ -887,7 +1037,7 @@ function modalBackup() {
           const dados = JSON.parse(await f.text());
           if (typeof dados !== "object" || !dados) throw new Error();
           if (!confirm("Importar substitui todos os dados atuais deste aparelho. Continuar?")) return;
-          S = Object.assign(estadoInicial(), dados); UI.modal = null; atualizar(); toast("Backup importado!");
+          S = Object.assign(estadoInicial(), dados); UI.modal = null; aplicarTema(); atualizar(); toast("Backup importado!");
         } catch (err) { toast("Arquivo de backup inválido."); }
       } })),
     h("div", { style: "margin-top:20px" }, titulo("documento", "Meu plano alimentar", "verde", "h2")),
@@ -909,6 +1059,59 @@ function modalBackup() {
   ];
 }
 
+/* ---------- Perfil e configurações ---------- */
+function aplicarTema() {
+  const escuro = S.tema === "escuro";
+  if (escuro) document.documentElement.dataset.theme = "dark";
+  else document.documentElement.dataset.theme = "light";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", escuro ? "#14122A" : "#EEEBFB");
+}
+function inicial() { return (S.perfil.nome || "").trim().charAt(0).toUpperCase(); }
+function modalPerfil() {
+  const P = S.perfil;
+  const serie = seriePeso();
+  const atual = serie.at(-1)?.peso;
+  const imc = atual && P.altura ? atual / (P.altura / 100) ** 2 : null;
+  const anos = idade(P.nascimento);
+  const mudar = (k, v) => { if (v == null || v === "") delete P[k]; else P[k] = v; atualizar(); };
+  const numero = (e) => { const v = parseFloat(String(e.target.value).replace(",", ".")); return Number.isFinite(v) && v > 0 ? v : null; };
+  return [
+    h("div", { class: "perfil-topo" },
+      h("span", { class: "avatar", "aria-hidden": "true" }, inicial() || ic("pessoa")),
+      h("div", { class: "cresce" }, h("h2", {}, P.nome ? `Olá, ${P.nome}!` : "Seu perfil"),
+        h("div", { class: "suave" }, anos != null ? `${anos} anos` : "Fica salvo só neste aparelho."))),
+    h("div", { class: "metricas" },
+      [["Peso atual", atual ? `${fmt(atual, 1)} kg` : "—"],
+       ["Meta", P.pesoMeta ? `${fmt(P.pesoMeta, 1)} kg` : "—"],
+       atual && P.pesoMeta ? ["Para a meta", faltaMeta(atual, P.pesoMeta)] : ["IMC", imc ? fmt(imc, 1) : "—"]]
+        .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v)))),
+    atual && P.pesoMeta && imc ? h("p", { class: "suave" }, `IMC calculado: ${fmt(imc, 1)} (peso do último registro e sua altura).`) : null,
+    !atual ? h("p", { class: "suave" }, "O peso atual vem do último registro da aba Peso.") : null,
+    h("div", { class: "secao" }, titulo("pessoa", "Seus dados", "rosa")),
+    h("label", { class: "campo" }, h("span", {}, "Nome"),
+      h("input", { id: "perfil-nome", value: P.nome || "", placeholder: "Como quer ser chamada?", autocomplete: "given-name",
+        onchange: (e) => mudar("nome", e.target.value.trim()) })),
+    h("label", { class: "campo" }, h("span", {}, "Data de nascimento"),
+      h("input", { id: "perfil-nascimento", type: "date", value: P.nascimento || "", max: hojeISO(),
+        onchange: (e) => mudar("nascimento", e.target.value) })),
+    h("div", { class: "grade2" },
+      h("label", { class: "campo" }, h("span", {}, "Altura (cm)"),
+        h("input", { id: "perfil-altura", type: "number", inputMode: "decimal", min: "50", max: "250", step: "0.5", value: P.altura ?? "", placeholder: "Ex.: 165",
+          onchange: (e) => mudar("altura", numero(e)) })),
+      h("label", { class: "campo" }, h("span", {}, "Peso meta (kg)"),
+        h("input", { id: "perfil-meta", type: "number", inputMode: "decimal", min: "20", max: "300", step: "0.1", value: P.pesoMeta ?? "", placeholder: "Ex.: 62",
+          onchange: (e) => mudar("pesoMeta", numero(e)) }))),
+    h("div", { class: "secao" }, titulo("sol", "Aparência", "amarelo")),
+    h("div", { class: "alternador", role: "radiogroup", "aria-label": "Tema" },
+      [["claro", "sol", "Claro"], ["escuro", "lua", "Escuro"]].map(([k, icone, r]) =>
+        h("button", { class: S.tema === k ? "ativo" : "", role: "radio", "aria-checked": String(S.tema === k),
+          onclick: () => { S.tema = k; aplicarTema(); atualizar(); } }, ic(icone), r))),
+    h("div", { class: "secao" }, titulo("baixar", "Dados e plano", "lilas")),
+    h("button", { class: "btn bloco", onclick: () => abrirModal(modalBackup) }, ic("baixar"), "Backup e plano alimentar"),
+    h("button", { class: "btn primario bloco", style: "margin-top:12px", onclick: fecharModal }, "Pronto"),
+  ];
+}
+
 /* ---------- Render ---------- */
 const ABAS = [["semana", "semana", "Semana"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
 const TITULOS = { semana: "Plano da semana", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
@@ -919,10 +1122,10 @@ function render() {
   const partes = [
     h("header", { class: "topo" },
       h("span", { class: "logo" }, ic("salada")),
-      h("div", { class: "cresce" }, h("div", { class: "marca" }, "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
+      h("div", { class: "cresce" }, h("div", { class: "marca" }, S.perfil.nome ? `Olá, ${S.perfil.nome}!` : "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
       h("button", { class: "icone-btn", "aria-label": "Referências", title: "Referências", onclick: () => abrirModal(modalReferencias) }, ic("ajuda")),
-      h("button", { class: "icone-btn", "aria-label": "Backup e plano", title: "Backup e plano", onclick: () => abrirModal(modalBackup) }, ic("baixar"))),
-    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Use o botão de backup, no topo, para exportar seus dados.") : null,
+      h("button", { class: "avatar", "aria-label": "Perfil e configurações", title: "Perfil e configurações", onclick: () => abrirModal(modalPerfil) }, inicial() || ic("pessoa"))),
+    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Abra o perfil (círculo no topo) → Backup e plano alimentar para exportar seus dados.") : null,
     telas[UI.aba](),
     h("nav", { class: "nav" }, h("div", { class: "nav-interno" }, ABAS.map(([k, e, r]) =>
       h("button", { class: UI.aba === k ? "ativo" : "", "aria-current": UI.aba === k ? "page" : null,
@@ -941,4 +1144,5 @@ function renderMantendoFoco(campo) {
   const novo = [...document.querySelectorAll("input[type=search]")].find((i) => i.placeholder === ph && i.value === campo.value);
   if (novo) { novo.focus(); try { novo.setSelectionRange(pos, pos); } catch (e) {} }
 }
+aplicarTema();
 render();
