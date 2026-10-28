@@ -105,6 +105,54 @@ function toast(msg) {
 }
 function atualizar() { salvar(); render(); }
 
+/* ---------- Ícones (SVG de traço, 24×24) ---------- */
+const ICONES = {
+  semana: '<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  salada: '<path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M12 11c0-4 2.5-6.5 6-7-.3 3.6-2.6 6.2-6 7Z"/><path d="M8.5 11c0-2.5-1.5-4-4-4.5"/>',
+  prato: '<circle cx="14" cy="12" r="7.5"/><circle cx="14" cy="12" r="3.8"/><path d="M3 3v5.5a1.5 1.5 0 0 0 3 0V3M4.5 10v11"/>',
+  peso: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 10a4 4 0 0 1 8 0"/><path d="M12 10l1.8-2.4"/>',
+  ajuda: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.9-.9 1.6v.4"/><path d="M12 17h.01"/>',
+  baixar: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  enviar: '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  carrinho: '<path d="M2.5 4H5l2.2 10.4a1.5 1.5 0 0 0 1.5 1.1h8.4a1.5 1.5 0 0 0 1.4-1.1L20.5 8H6"/><circle cx="10" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>',
+  gota: '<path d="M12 3c3.5 4.2 6 7.6 6 10.8a6 6 0 0 1-12 0C6 10.6 8.5 7.2 12 3Z"/>',
+  fogo: '<path d="M12 21a7 7 0 0 0 7-7c0-4-3-6.5-4-10-2 1.5-3 3.5-3 5.5-1-.8-1.7-2-2-3.2C7.5 8.5 5 11 5 14a7 7 0 0 0 7 7Z"/>',
+  lista: '<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V2.5h6V4M9 12.5l2 2 4-4"/>',
+  cafe: '<path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3c-.6 1 .6 2 0 3M12 3c-.6 1 .6 2 0 3"/>',
+  maca: '<path d="M12 8c-2-1.5-7-1.5-7 4 0 4 2.5 8 5 8 .8 0 1.2-.5 2-.5s1.2.5 2 .5c2.5 0 5-4 5-8 0-5.5-5-5.5-7-4Z"/><path d="M12 8c0-2 .8-3.5 2.5-4.5"/>',
+  talheres: '<path d="M6 3v5.5a1.5 1.5 0 0 0 3 0V3M7.5 10v11"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/>',
+  biscoito: '<circle cx="12" cy="12" r="9"/><path d="M9 9h.01M14.5 8h.01M15 13.5h.01M9.5 15h.01M12 11.5h.01"/>',
+  lua: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
+  coracao: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10Z"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  lixeira: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+  lapis: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/>',
+  grafico: '<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>',
+  regua: '<rect x="2.5" y="8" width="19" height="8" rx="2"/><path d="M6.5 8v3M10.5 8v4M14.5 8v3M18 8v4"/>',
+  alvo: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
+  pino: '<path d="M12 21s7-6 7-11.5A7 7 0 0 0 5 9.5C5 15 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  salvar: '<path d="M6 3h12v18l-6-4-6 4Z"/>',
+  livro: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v14H6a2 2 0 0 0-2 2.5 2 2 0 0 0 2 2h14"/>',
+  documento: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+};
+function ic(nome, classe = "ic") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", classe);
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = ICONES[nome];
+  return svg;
+}
+// Título com o ícone num quadradinho colorido (lilas, azul, rosa, amarelo, verde)
+function titulo(icone, texto, cor = "lilas", tag = "h3") {
+  return h(tag, { class: "titulo" }, h("span", { class: "tile " + cor }, ic(icone)), h("span", {}, texto));
+}
+// "Café da manhã 🍳" → "Café da manhã" (o emoji faz parte da chave salva, só some na tela)
+const semEmoji = (t) => t.replace(/\s*\p{Extended_Pictographic}.*$/u, "");
+const ICONE_REFEICAO = [["cafe", "amarelo"], ["maca", "verde"], ["talheres", "rosa"], ["biscoito", "azul"], ["lua", "lilas"], ["coracao", "rosa"]];
+
 /* ---------- Alimentos e cálculos ---------- */
 function alimento(id) { return D.alimentos[id] || S.personalizados[id]; }
 function nutr(a, gramas) {
@@ -273,10 +321,10 @@ function cartaoSalvo({ prefixo, nome, dados, resumo, descricao, carregarFn, excl
     h("div", { class: "grade2" },
       h("label", { class: "campo" }, h("span", {}, "Dia"), selectSimples(alvo.dia, D.dias, (v) => { alvo.dia = v; })),
       h("label", { class: "campo" }, h("span", {}, "Refeição"), selectSimples(alvo.refeicao, dados.refeicoes, (v) => { alvo.refeicao = v; }))),
-    h("button", { class: "btn primario bloco", onclick: () => porNoPlanner(prefixo, nome, alvo.dia, alvo.refeicao) }, "🗓️ Pôr na semana"),
+    h("button", { class: "btn primario bloco", onclick: () => porNoPlanner(prefixo, nome, alvo.dia, alvo.refeicao) }, ic("semana"), "Pôr na semana"),
     h("div", { class: "grade2", style: "margin-top:8px" },
-      h("button", { class: "btn", onclick: carregarFn }, "✏️ Editar"),
-      h("button", { class: "btn perigo", onclick: () => { if (confirm(`Excluir “${nome}”?`)) excluirFn(); } }, "🗑️ Excluir")));
+      h("button", { class: "btn", onclick: carregarFn }, ic("lapis"), "Editar"),
+      h("button", { class: "btn perigo", onclick: () => { if (confirm(`Excluir “${nome}”?`)) excluirFn(); } }, ic("lixeira"), "Excluir")));
 }
 
 // Cartão "salvar" compartilhado por salada e prato
@@ -284,7 +332,7 @@ function cartaoSalvar(rascunho, onSalvar, onLimpar, tipo) {
   rascunho.nome ??= "";
   rascunho.refeicoes ??= REFEICOES.filter((r) => r.startsWith("Almoço") || r.startsWith("Jantar"));
   return h("div", { class: "cartao" },
-    h("h3", {}, `💾 Salvar ${tipo}`),
+    titulo("salvar", `Salvar ${tipo}`),
     h("label", { class: "campo" }, h("span", {}, "Nome"),
       h("input", { value: rascunho.nome, placeholder: tipo === "salada" ? "Ex.: Frango com milho" : "Ex.: Frango com arroz",
         onchange: (e) => { rascunho.nome = e.target.value; salvar(); } })),
@@ -339,9 +387,9 @@ function grafico(registros, chave, unidade) {
       stroke: "var(--laranja)", "stroke-width": 2, "stroke-dasharray": "6 4" }));
     rodape = h("p", { class: "suave" }, "Tendência (tracejado laranja): ", h("b", {}, `${a * 7 >= 0 ? "+" : ""}${fmt(a * 7, 2)} ${unidade} por semana`));
   }
-  svg.append(s("polyline", { points: dados.map((p) => `${px(p.x)},${py(p.y)}`).join(" "), fill: "none", stroke: "var(--verde)", "stroke-width": 2.5 }));
+  svg.append(s("polyline", { points: dados.map((p) => `${px(p.x)},${py(p.y)}`).join(" "), fill: "none", stroke: "var(--acento)", "stroke-width": 2.5 }));
   for (const p of dados) {
-    const c = s("circle", { cx: px(p.x), cy: py(p.y), r: 4, fill: "var(--verde)" });
+    const c = s("circle", { cx: px(p.x), cy: py(p.y), r: 4, fill: "var(--acento)" });
     const t = s("title", {}); t.textContent = `${dataBR(p.data)}: ${fmt(p.y, 1)} ${unidade}`; c.append(t); svg.append(c);
   }
   return h("div", { class: "grafico" }, svg, rodape);
@@ -355,51 +403,130 @@ function telaSemana() {
   const litros = plano().aguaLitros || 2;
   const totalCopos = Math.round(litros / 0.25);
   const metaKcal = plano().metaDiaKcal;
+  const escolhidas = REFEICOES.filter((r) => (S.planner[dia]?.[r]?.meal || "Nenhuma") !== "Nenhuma").length;
+  const nCompras = listaCompras().length;
   return [
+    h("section", { class: "destaque" },
+      h("div", { class: "destaque-texto" },
+        h("h2", {}, "Sua semana, prato a prato"),
+        h("p", {}, "Escolha as refeições de cada dia. A lista de compras sai pronta."),
+        h("button", { class: "btn pilula", onclick: () => abrirModal(modalCompras) }, ic("carrinho"), "Lista de compras")),
+      h("div", { class: "ilustracao", html: ILUSTRACAO })),
     h("div", { class: "chips" }, D.dias.map((d) => h("button", {
       class: "chip" + (d === dia ? " ativo" : ""), onclick: () => { UI.dia = d; render(); },
-    }, d.slice(0, 3), d === D.dias[(hoje.getDay() + 6) % 7] ? h("span", { class: "ponto" }, " •") : null))),
+    }, d.slice(0, 3), d === D.dias[(hoje.getDay() + 6) % 7] ? h("span", { class: "ponto", "aria-label": "hoje" }) : null))),
+    h("div", { class: "stats" },
+      stat("fogo", "amarelo", "Calorias", fmt(kcal), metaKcal ? `de ~${fmt(metaKcal)} kcal` : "kcal no dia"),
+      stat("gota", "azul", "Água", `${fmt(copos * 0.25, 2)} L`, `de ${fmt(litros, 2)} L`),
+      stat("talheres", "rosa", "Refeições", `${escolhidas}/${REFEICOES.length}`, "escolhidas no dia"),
+      stat("carrinho", "verde", "Compras", fmt(nCompras), nCompras === 1 ? "item na semana" : "itens na semana")),
     h("div", { class: "cartao" },
-      h("div", { class: "linha entre" }, h("h2", {}, dia), h("span", { class: "selo" }, metaKcal ? `${fmt(kcal)} de ~${fmt(metaKcal)} kcal` : `${fmt(kcal)} kcal`)),
-      REFEICOES.map((ref) => {
+      h("div", { class: "linha entre" }, titulo("semana", dia, "lilas", "h2"),
+        h("span", { class: "selo" }, metaKcal ? `${fmt(kcal)} de ~${fmt(metaKcal)} kcal` : `${fmt(kcal)} kcal`)),
+      REFEICOES.map((ref, i) => {
         const sel = selecao(dia, ref);
         const opcoes = opcoesRefeicao(ref);
         if (sel.meal !== "Nenhuma" && !opcoes.includes(sel.meal)) opcoes.unshift(sel.meal);
         const det = detalhes(sel.meal);
-        return h("div", { style: "margin:12px 0" },
-          h("div", { class: "linha entre" }, h("b", {}, ref), det ? h("span", { class: "suave" }, `~${det.calories} kcal`) : null),
-          h("div", { class: "linha", style: "margin-top:4px" },
-            h("select", { class: "entrada cresce", onchange: (e) => { sel.meal = e.target.value; atualizar(); } },
-              ["Nenhuma", ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
-            h("select", { class: "entrada", style: "width:76px", title: "Pessoas",
-              onchange: (e) => { sel.people = Number(e.target.value); atualizar(); } },
-              [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `👤${n}`)))),
-          det?.plano ? h("details", { class: "suave", style: "margin-top:4px" },
-            h("summary", {}, "📋 Ver refeição do plano"),
-            h("ul", {}, det.plano.itens.map((it) => h("li", {},
-              it.nome, it.gramas ? ` · ${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : "", it.medida ? ` (${it.medida})` : ""))),
-            det.semDados.length ? h("p", {}, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
-            det.plano.substituicoes?.length ? [h("b", {}, "Pode trocar:"), h("ul", {}, det.plano.substituicoes.map((t) => h("li", {}, t)))] : null) : null);
+        const [icone, cor] = ICONE_REFEICAO[i] || ["talheres", "lilas"];
+        return h("div", { class: "refeicao" },
+          h("span", { class: "tile " + cor }, ic(icone)),
+          h("div", { class: "cresce" },
+            h("div", { class: "linha entre" }, h("b", {}, semEmoji(ref)), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
+            h("div", { class: "linha", style: "margin-top:6px" },
+              h("select", { class: "entrada cresce", "aria-label": semEmoji(ref), onchange: (e) => { sel.meal = e.target.value; atualizar(); } },
+                ["Nenhuma", ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
+              h("select", { class: "entrada pessoas", "aria-label": "Pessoas",
+                onchange: (e) => { sel.people = Number(e.target.value); atualizar(); } },
+                [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `${n} pess.`)))),
+            det?.plano ? h("details", { class: "suave detalhe-plano" },
+              h("summary", {}, ic("lista"), "Ver refeição do plano"),
+              h("ul", {}, det.plano.itens.map((it) => h("li", {},
+                it.nome, it.gramas ? ` · ${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : "", it.medida ? ` (${it.medida})` : ""))),
+              det.semDados.length ? h("p", {}, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
+              det.plano.substituicoes?.length ? [h("b", {}, "Pode trocar:"), h("ul", {}, det.plano.substituicoes.map((t) => h("li", {}, t)))] : null) : null));
       })),
     h("div", { class: "cartao" },
-      h("div", { class: "linha entre" }, h("h3", {}, "💧 Hidratação"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de ${fmt(litros, 2)} L`)),
+      h("div", { class: "linha entre" }, titulo("gota", "Hidratação", "azul"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de ${fmt(litros, 2)} L`)),
       h("div", { class: "copos", style: `grid-template-columns:repeat(${totalCopos <= 8 ? totalCopos : 7},1fr)` }, Array.from({ length: totalCopos }, (_, i) => h("button", {
         class: "copo" + (i < copos ? " cheio" : ""), "aria-label": `Copo ${i + 1}`,
         onclick: () => { S.agua[dia] = i < copos && i === copos - 1 ? i : i + 1; atualizar(); },
-      }, "🥛"))),
+      }, ic("gota")))),
       barra(copos, totalCopos)),
-    h("button", { class: "btn primario bloco", onclick: () => abrirModal(modalCompras) }, "🛒 Lista de compras da semana"),
-    plano().orientacoes?.length ? h("details", { class: "cartao" }, h("summary", {}, "📌 Orientações do plano"),
+    h("div", { class: "cartao" },
+      h("div", { class: "linha entre" }, titulo("grafico", "Calorias da semana", "rosa"), h("span", { class: "suave" }, "toque num dia")),
+      graficoSemana(metaKcal)),
+    plano().orientacoes?.length ? h("details", { class: "cartao" }, h("summary", {}, titulo("pino", "Orientações do plano", "verde", "span")),
       h("ul", {}, plano().orientacoes.map((t) => h("li", {}, t)))) : null,
   ];
 }
+function stat(icone, cor, rotulo, valor, detalhe) {
+  return h("div", { class: "stat " + cor },
+    h("span", { class: "tile " + cor }, ic(icone)),
+    h("div", { class: "stat-rotulo" }, rotulo),
+    h("div", { class: "stat-valor" }, valor),
+    h("div", { class: "stat-detalhe" }, detalhe));
+}
+// Barras com as calorias de cada dia; a linha tracejada é a meta do plano (se houver)
+function graficoSemana(meta) {
+  const vals = D.dias.map(kcalDia);
+  const maior = Math.max(meta || 0, ...vals, 500);
+  const passo = maior <= 1000 ? 250 : maior <= 2000 ? 500 : 1000;
+  const topo = Math.ceil(maior / passo) * passo;
+  const L = 340, A = 190, me = 40, md = 6, mt = 12, mb = 26;
+  const py = (v) => mt + (1 - v / topo) * (A - mt - mb);
+  const col = (L - me - md) / 7, larg = Math.min(26, col * 0.6);
+  const NS = "http://www.w3.org/2000/svg";
+  const s = (tag, attrs, texto) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (texto != null) e.textContent = texto; return e; };
+  const svg = s("svg", { viewBox: `0 0 ${L} ${A}`, role: "img", "aria-label": "Calorias por dia da semana" });
+  for (let v = 0; v <= topo; v += passo) {
+    svg.append(s("line", { x1: me, x2: L - md, y1: py(v), y2: py(v), class: "grade" }));
+    svg.append(s("text", { x: me - 6, y: py(v) + 4, "text-anchor": "end", class: "eixo" }, fmt(v)));
+  }
+  D.dias.forEach((d, i) => {
+    const cx = me + col * i + col / 2;
+    const g = s("g", { class: "dia-barra" + (d === UI.dia ? " atual" : ""), tabindex: 0, role: "button", "aria-label": `${d}: ${fmt(vals[i])} kcal` });
+    g.append(s("rect", { x: me + col * i, y: mt, width: col, height: A - mt, fill: "transparent" }));
+    if (vals[i] > 0) {
+      const y = py(vals[i]);
+      g.append(s("rect", { x: cx - larg / 2, y, width: larg, height: py(0) - y, rx: Math.min(8, (py(0) - y) / 2), class: "barra-" + (i % 5) }));
+    }
+    g.append(s("text", { x: cx, y: A - 8, "text-anchor": "middle", class: "eixo dia" }, d.slice(0, 3)));
+    const escolher = () => { UI.dia = d; render(); };
+    g.addEventListener("click", escolher);
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); escolher(); } });
+    svg.append(g);
+  });
+  if (meta) {
+    svg.append(s("line", { x1: me, x2: L - md, y1: py(meta), y2: py(meta), class: "linha-meta" }));
+    svg.append(s("text", { x: L - md, y: py(meta) - 5, "text-anchor": "end", class: "eixo meta" }, "meta"));
+  }
+  return h("div", { class: "grafico" }, svg);
+}
+const ILUSTRACAO = `<svg viewBox="0 0 160 130" aria-hidden="true">
+  <defs><linearGradient id="tigela" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B9A4FF"/><stop offset="1" stop-color="#7C5CF5"/></linearGradient></defs>
+  <ellipse cx="80" cy="118" rx="58" ry="7" fill="#2A1F55" opacity=".12"/>
+  <path d="M118 14c11 1 18 9 18 20-11-1-18-8-18-20Z" fill="#5DB075"/>
+  <path d="M124 22c3 4 6 8 8 12" stroke="#3E8C57" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="50" cy="58" r="18" fill="#7CC37F"/>
+  <circle cx="74" cy="46" r="17" fill="#9BD46A"/>
+  <circle cx="102" cy="52" r="18" fill="#5DB075"/>
+  <circle cx="64" cy="64" r="10" fill="#FFD166"/>
+  <circle cx="90" cy="61" r="12" fill="#F25C6A"/>
+  <circle cx="86" cy="57" r="3" fill="#fff" opacity=".5"/>
+  <circle cx="114" cy="64" r="8" fill="#F25C6A"/>
+  <path d="M18 66h124a62 46 0 0 1-124 0Z" fill="url(#tigela)"/>
+  <path d="M40 84c9 10 22 15 34 15" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" opacity=".35"/>
+  <path d="M28 14l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#FFC94D"/>
+  <path d="M146 64l2 4.5 4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2Z" fill="#FFC94D"/>
+</svg>`;
 function modalCompras() {
   const itens = listaCompras();
   const texto = itens.map((i) => `☐ ${fmt(i.qtd, i.qtd % 1 ? 1 : 0)} ${i.unidade} de ${i.nome}`).join("\n");
   return [
-    h("h2", {}, "🛒 Lista de compras"),
+    titulo("carrinho", "Lista de compras", "verde", "h2"),
     itens.length ? h("ul", { class: "lista" }, itens.map((i) => h("li", {},
-      h("input", { type: "checkbox", checked: !!S.comprasMarcadas[i.nome], style: "width:22px;height:22px;accent-color:var(--verde)",
+      h("input", { type: "checkbox", checked: !!S.comprasMarcadas[i.nome], style: "width:22px;height:22px;accent-color:var(--acento)",
         onchange: (e) => { S.comprasMarcadas[i.nome] = e.target.checked; atualizar(); } }),
       h("span", { class: S.comprasMarcadas[i.nome] ? "riscado" : "" }, h("b", {}, `${fmt(i.qtd, i.qtd % 1 ? 1 : 0)} ${i.unidade}`), ` de ${i.nome}`))))
       : h("p", { class: "vazio" }, "Escolha refeições na semana para gerar a lista (itens do RU, arroz e feijão ficam de fora)."),
@@ -407,7 +534,7 @@ function modalCompras() {
       h("button", { class: "btn", onclick: async () => {
         if (navigator.share) { try { await navigator.share({ title: "Lista de compras", text: texto }); } catch (e) {} }
         else { try { await navigator.clipboard.writeText(texto); toast("Lista copiada!"); } catch (e) { toast("Não foi possível copiar."); } }
-      } }, "📤 Compartilhar"),
+      } }, ic("enviar"), "Compartilhar"),
       h("button", { class: "btn", onclick: () => { S.comprasMarcadas = {}; atualizar(); } }, "Desmarcar tudo")) : null,
   ];
 }
@@ -448,7 +575,7 @@ function telaSalada() {
         h("div", { class: "macros" }, `P ${fmt(t.prot)} g · C ${fmt(t.carb)} g · G ${fmt(t.gord)} g`)),
       h("div", { class: "cresce", style: "text-align:right;font-size:.85rem" },
         pendencias.length ? `Falta: ${pendencias.join(", ")}` : itens.length ? "Salada completa! 🎉" : "Marque os ingredientes")),
-    itens.length ? h("div", { class: "cartao" }, h("h3", {}, "🧾 Ingredientes"),
+    itens.length ? h("div", { class: "cartao" }, titulo("recibo", "Ingredientes", "amarelo"),
       h("ul", { class: "lista" }, itens.map(({ item, fator }) => h("li", {},
         h("span", { class: "cresce" }, item.nome, h("div", { class: "suave" }, qtdSalada(item, fator))),
         h("b", {}, `${fmt(item.kcal * fator)} kcal`))))) : null,
@@ -461,7 +588,7 @@ function telaSalada() {
       tirarDoPlanner(PREFIXO_SALADA, nome, R.refeicoes);
       atualizar(); toast(`Salada “${nome}” salva!`);
     }, () => { S.rascunho.salada = {}; atualizar(); }, "salada"),
-    h("h2", {}, "📚 Minhas saladas"),
+    titulo("livro", "Minhas saladas", "verde", "h2"),
     Object.keys(S.saladas).length ? Object.entries(S.saladas).sort(([a], [b]) => a.localeCompare(b)).map(([nome, dados]) => {
       const its = itensSalada(dados.itens), ts = totaisSalada(its);
       return cartaoSalvo({
@@ -536,9 +663,10 @@ function telaPrato() {
           for (const id of Object.keys(marcados)) marcados[id] = Math.round(metaVeg / qtd);
           atualizar();
         } }, `Dividir ${metaVeg} g igualmente`)] : null,
-      h("input", { class: "entrada", style: "margin-top:10px", type: "search", placeholder: "🔎 Buscar outro alimento na TACO…",
-        value: UI.busca["prato_" + espaco] || "",
-        oninput: (e) => { UI.busca["prato_" + espaco] = e.target.value; renderMantendoFoco(e.target); } }),
+      h("label", { class: "busca" }, ic("busca"),
+        h("input", { class: "entrada", type: "search", placeholder: `Buscar outro alimento na TACO (${espaco.toLowerCase()})…`,
+          value: UI.busca["prato_" + espaco] || "",
+          oninput: (e) => { UI.busca["prato_" + espaco] = e.target.value; renderMantendoFoco(e.target); } })),
       resultados.length ? h("ul", { class: "lista" }, resultados.map(([id, a]) => h("li", {},
         h("span", { class: "cresce" }, a.nome, h("div", { class: "suave" }, `${fmt(a.kcal)} kcal / 100 g`)),
         h("button", { class: "btn", onclick: () => {
@@ -552,7 +680,7 @@ function telaPrato() {
   const pesoTotal = Object.values(peso).reduce((s, g) => s + g, 0);
   return [
     !S.plano ? h("div", { class: "aviso" }, "Você está usando o ", h("b", {}, "plano de exemplo"),
-      " (genérico, 100 g de cada). Toque em 💾 e carregue o seu ", h("b", {}, "meu_plano.json"),
+      " (genérico, 100 g de cada). Toque no botão de backup, no topo, e carregue o seu ", h("b", {}, "meu_plano.json"),
       " para usar as regras e quantidades da sua nutri.") : null,
     h("p", { class: "suave" }, `Plano: ${plano().nome}. Ajuste os gramas se quiser. 🌱 = da época.`),
     passos,
@@ -562,11 +690,11 @@ function telaPrato() {
       h("div", { class: "cresce", style: "text-align:right;font-size:.85rem" },
         pendencias.length ? `Falta: ${pendencias.join(", ")}` : itens.length ? "Prato completo! 🎉" : "Marque os alimentos")),
     itens.length ? h("div", { class: "cartao" },
-      meta ? [h("h3", {}, "📊 Referência do plano por refeição"),
+      meta ? [titulo("alvo", "Referência do plano por refeição", "azul"),
         [["carb", "Carbo"], ["prot", "Proteína"], ["gord", "Gordura"]].map(([k, r]) => [
           h("div", { class: "linha entre suave" }, h("span", {}, r), h("span", {}, `${fmt(t[k])} g de ~${meta[k]} g`)), barra(t[k], meta[k])]),
         h("p", { class: "suave" }, "É só referência: algumas refeições ficam acima, outras abaixo.")] : null,
-      pesoTotal ? [h("h3", {}, "🍽️ Proporção do prato (pelo peso)"),
+      pesoTotal ? [titulo("prato", "Proporção do prato (pelo peso)", "rosa"),
         Object.entries(D.prato.proporcao).map(([e, ideal]) => h("div", { class: "linha entre" },
           h("span", {}, e), h("span", {}, h("b", {}, `${fmt(peso[e] / pesoTotal * 100)}%`), h("span", { class: "suave" }, ` (ideal ~${ideal}%)`))))] : null) : null,
     cartaoSalvar(P, () => {
@@ -579,9 +707,9 @@ function telaPrato() {
       atualizar(); toast(`Prato “${nome}” salvo!`);
     }, () => { S.rascunho.prato = {}; S.rascunho.extras = {}; atualizar(); }, "prato"),
     h("details", { class: "cartao" },
-      h("summary", {}, "➕ Cadastrar alimento que não está na TACO"),
+      h("summary", {}, titulo("mais", "Cadastrar alimento que não está na TACO", "amarelo", "span")),
       formularioAlimento()),
-    h("h2", {}, "📚 Meus pratos"),
+    titulo("livro", "Meus pratos", "verde", "h2"),
     Object.keys(S.pratos).length ? Object.entries(S.pratos).sort(([a], [b]) => a.localeCompare(b)).map(([nome, dados]) => {
       const tp = totaisPrato(dados.itens);
       return cartaoSalvo({
@@ -626,12 +754,12 @@ function formularioAlimento() {
     } }, "Cadastrar"),
     meus.length ? h("ul", { class: "lista", style: "margin-top:8px" }, meus.map(([id, a]) => h("li", {},
       h("span", { class: "cresce" }, a.nome, h("div", { class: "suave" }, `${a.grupo} · ${fmt(a.kcal)} kcal/100 g`)),
-      h("button", { class: "btn perigo", onclick: () => {
+      h("button", { class: "btn perigo icone", "aria-label": `Excluir ${a.nome}`, onclick: () => {
         if (!confirm(`Excluir “${a.nome}”?`)) return;
         delete S.personalizados[id];
         for (const e of ESPACOS) delete S.rascunho.prato[e]?.[id];
         atualizar();
-      } }, "🗑️")))) : null,
+      } }, ic("lixeira"))))) : null,
   ];
 }
 
@@ -654,14 +782,14 @@ function historico(lista, campos, extra = []) {
     h("span", { class: "cresce" }, h("b", {}, dataBR(r.data)), h("div", { class: "suave" },
       [...campos.filter(([k]) => r[k] != null).map(([k, rot, u]) => `${rot}: ${fmt(r[k], 1)}${u ? " " + u : ""}`),
         ...extra.filter((k) => r[k]).map((k) => r[k])].join(" · "))),
-    h("button", { class: "btn perigo", "aria-label": "Excluir registro", onclick: () => {
+    h("button", { class: "btn perigo icone", "aria-label": "Excluir registro", onclick: () => {
       if (confirm(`Excluir o registro de ${dataBR(r.data)}?`)) { lista.splice(lista.indexOf(r), 1); atualizar(); }
-    } }, "🗑️"))));
+    } }, ic("lixeira")))));
 }
 function telaPeso() {
   const abas = h("div", { class: "chips" },
-    [["medidas", "📏 Medidas e peso"], ["bio", "🔬 Bioimpedância"]].map(([k, r]) =>
-      h("button", { class: "chip" + (UI.abaPeso === k ? " ativo" : ""), onclick: () => { UI.abaPeso = k; render(); } }, r)));
+    [["medidas", "regua", "Medidas e peso"], ["bio", "alvo", "Bioimpedância"]].map(([k, icone, r]) =>
+      h("button", { class: "chip" + (UI.abaPeso === k ? " ativo" : ""), onclick: () => { UI.abaPeso = k; render(); } }, ic(icone), r)));
   if (UI.abaPeso === "medidas") {
     // Peso: junta medidas e bioimpedância (no mesmo dia, vale o das medidas)
     const pesos = {};
@@ -672,13 +800,13 @@ function telaPeso() {
     if (comMedida.length && !comMedida.some(([k]) => k === escolhaGrafico.medida)) escolhaGrafico.medida = comMedida[0][0];
     return [abas,
       h("div", { class: "cartao" },
-        h("h3", {}, "📉 Tendência do peso"),
+        titulo("grafico", "Tendência do peso", "rosa"),
         serie.length ? h("div", { class: "metricas" },
           [["Atual", `${fmt(serie.at(-1).peso, 1)} kg`], ["Desde o início", `${serie.at(-1).peso - serie[0].peso >= 0 ? "+" : ""}${fmt(serie.at(-1).peso - serie[0].peso, 1)} kg`], ["Registros", serie.length]]
             .map(([r, v]) => h("div", { class: "metrica" }, h("div", { class: "rotulo" }, r), h("div", { class: "valor" }, v)))) : null,
         grafico(serie, "peso", "kg")),
       h("div", { class: "cartao" },
-        h("h3", {}, "➕ Novo registro"),
+        titulo("mais", "Novo registro", "lilas"),
         h("label", { class: "campo" }, h("span", {}, "Data"), h("input", { type: "date", value: formMedidas.data, onchange: (e) => { formMedidas.data = e.target.value; } })),
         h("div", { class: "grade2" }, CAMPOS_MEDIDAS.map(([k, r, u]) => campoNumero(`${r} (${u})`, formMedidas[k], (v) => { formMedidas[k] = v; }))),
         h("button", { class: "btn primario bloco", onclick: () => {
@@ -688,11 +816,11 @@ function telaPeso() {
         } }, "Salvar medidas"),
         h("p", { class: "suave" }, "Deixe em branco o que não mediu. Salvar de novo na mesma data substitui.")),
       comMedida.length ? h("div", { class: "cartao" },
-        h("h3", {}, "📏 Evolução das medidas"),
+        titulo("regua", "Evolução das medidas", "azul"),
         h("select", { class: "entrada", onchange: (e) => { escolhaGrafico.medida = e.target.value; render(); } },
           comMedida.map(([k, r]) => h("option", { value: k, selected: k === escolhaGrafico.medida }, r))),
         grafico(S.medidas, escolhaGrafico.medida, "cm")) : null,
-      h("div", { class: "cartao" }, h("h3", {}, "📋 Histórico"), historico(S.medidas, CAMPOS_MEDIDAS)),
+      h("div", { class: "cartao" }, titulo("lista", "Histórico", "amarelo"), historico(S.medidas, CAMPOS_MEDIDAS)),
     ];
   }
   const comDados = CAMPOS_BIO.filter(([k]) => S.bio.some((r) => r[k] != null));
@@ -700,7 +828,7 @@ function telaPeso() {
   const campoGraf = CAMPOS_BIO.find(([k]) => k === escolhaGrafico.bio);
   return [abas,
     h("div", { class: "cartao" },
-      h("h3", {}, "➕ Nova bioimpedância"),
+      titulo("mais", "Nova bioimpedância", "lilas"),
       h("label", { class: "campo" }, h("span", {}, "Print da balança (só para consulta, não é salvo)"),
         h("input", { type: "file", accept: "image/*", onchange: (e) => {
           const f = e.target.files[0];
@@ -717,11 +845,11 @@ function telaPeso() {
         atualizar(); toast("Bioimpedância salva!");
       } }, "Salvar bioimpedância")),
     comDados.length ? h("div", { class: "cartao" },
-      h("h3", {}, "📈 Evolução"),
+      titulo("grafico", "Evolução", "azul"),
       h("select", { class: "entrada", onchange: (e) => { escolhaGrafico.bio = e.target.value; render(); } },
         comDados.map(([k, r]) => h("option", { value: k, selected: k === escolhaGrafico.bio }, r))),
       grafico(S.bio, campoGraf[0], campoGraf[2])) : null,
-    h("div", { class: "cartao" }, h("h3", {}, "📋 Histórico"), historico(S.bio, CAMPOS_BIO, ["tipo"])),
+    h("div", { class: "cartao" }, titulo("lista", "Histórico", "amarelo"), historico(S.bio, CAMPOS_BIO, ["tipo"])),
   ];
 }
 
@@ -744,15 +872,15 @@ function modalReferencias() {
 }
 function modalBackup() {
   return [
-    h("h2", {}, "💾 Backup dos seus dados"),
+    titulo("baixar", "Backup dos seus dados", "lilas", "h2"),
     h("p", { class: "suave" }, "Seus dados ficam salvos só neste aparelho, neste navegador. Se limpar os dados do navegador, eles somem — faça backup de vez em quando."),
     !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Este navegador não está deixando salvar (modo anônimo?). Exporte um backup antes de fechar.") : null,
     h("button", { class: "btn primario bloco", onclick: () => {
       const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
       const a = h("a", { href: URL.createObjectURL(blob), download: `planner-saudavel-${hojeISO()}.json` });
       document.body.append(a); a.click(); a.remove();
-    } }, "⬇️ Exportar backup"),
-    h("label", { class: "btn bloco", style: "display:grid;place-items:center;margin-top:8px" }, "⬆️ Importar backup",
+    } }, ic("baixar"), "Exportar backup"),
+    h("label", { class: "btn bloco", style: "margin-top:8px" }, ic("enviar"), "Importar backup",
       h("input", { type: "file", accept: "application/json,.json", style: "display:none", onchange: async (e) => {
         const f = e.target.files[0]; if (!f) return;
         try {
@@ -762,9 +890,9 @@ function modalBackup() {
           S = Object.assign(estadoInicial(), dados); UI.modal = null; atualizar(); toast("Backup importado!");
         } catch (err) { toast("Arquivo de backup inválido."); }
       } })),
-    h("h2", { style: "margin-top:20px" }, "📄 Meu plano alimentar"),
+    h("div", { style: "margin-top:20px" }, titulo("documento", "Meu plano alimentar", "verde", "h2")),
     h("p", { class: "suave" }, `Em uso: ${plano().nome}. O seu plano fica só neste aparelho — ele não está no site.`),
-    h("label", { class: "btn primario bloco", style: "display:grid;place-items:center" }, "📄 Carregar meu_plano.json",
+    h("label", { class: "btn primario bloco" }, ic("documento"), "Carregar meu_plano.json",
       h("input", { type: "file", accept: "application/json,.json", style: "display:none", onchange: async (e) => {
         const f = e.target.files[0]; if (!f) return;
         try {
@@ -782,7 +910,7 @@ function modalBackup() {
 }
 
 /* ---------- Render ---------- */
-const ABAS = [["semana", "🗓️", "Semana"], ["salada", "🥗", "Salada"], ["prato", "🍽️", "Prato"], ["peso", "⚖️", "Peso"]];
+const ABAS = [["semana", "semana", "Semana"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
 const TITULOS = { semana: "Plano da semana", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
 function render() {
   const rolagem = window.scrollY;
@@ -790,15 +918,16 @@ function render() {
   const app = document.getElementById("app");
   const partes = [
     h("header", { class: "topo" },
-      h("h1", {}, "🥑 ", TITULOS[UI.aba]),
-      h("button", { class: "icone-btn", "aria-label": "Referências", onclick: () => abrirModal(modalReferencias) }, "?"),
-      h("button", { class: "icone-btn", "aria-label": "Backup", onclick: () => abrirModal(modalBackup) }, "💾")),
-    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Use 💾 para exportar um backup.") : null,
+      h("span", { class: "logo" }, ic("salada")),
+      h("div", { class: "cresce" }, h("div", { class: "marca" }, "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
+      h("button", { class: "icone-btn", "aria-label": "Referências", title: "Referências", onclick: () => abrirModal(modalReferencias) }, ic("ajuda")),
+      h("button", { class: "icone-btn", "aria-label": "Backup e plano", title: "Backup e plano", onclick: () => abrirModal(modalBackup) }, ic("baixar"))),
+    !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Use o botão de backup, no topo, para exportar seus dados.") : null,
     telas[UI.aba](),
     h("nav", { class: "nav" }, h("div", { class: "nav-interno" }, ABAS.map(([k, e, r]) =>
       h("button", { class: UI.aba === k ? "ativo" : "", "aria-current": UI.aba === k ? "page" : null,
         onclick: () => { if (UI.aba !== k) { UI.aba = k; render(); window.scrollTo(0, 0); } } },
-        h("span", { class: "emoji" }, e), r)))),
+        ic(e), h("span", {}, r))))),
     UI.modal ? h("div", { class: "fundo-modal", onclick: (e) => { if (e.target === e.currentTarget) fecharModal(); } },
       h("div", { class: "folha", role: "dialog" }, UI.modal())) : null,
   ];
