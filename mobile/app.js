@@ -7,6 +7,7 @@ const D = window.DADOS;
 const CHAVE = "plannerSaudavel.v1";
 const PREFIXO_SALADA = "🥗 ";
 const PREFIXO_PRATO = "🍽️ ";
+const PREFIXO_PLANO = "📋 ";
 const REFEICOES = Object.keys(D.refeicoes);
 const ESPACOS = Object.keys(D.prato.gruposTaco);
 const CATEGORIAS_SALADA = Object.keys(D.salada.ingredientes);
@@ -141,8 +142,23 @@ const qtdSalada = (item, fator) => fator === 1 ? item.porcao : `½ × ${item.por
 const totaisPrato = (itens) => somar(itens.filter((i) => alimento(i.id)).map((i) => nutr(alimento(i.id), i.gramas)));
 
 // Detalhes de qualquer refeição do planner (base, salada salva ou prato salvo)
+// Refeição do cardápio do plano: itens sem dado em tabela (id null) aparecem, mas não entram nas calorias
+function refeicaoDoPlano(nome) {
+  return (plano().cardapio || []).find((r) => PREFIXO_PLANO + r.nome === nome);
+}
 function detalhes(nome) {
   if (D.detalhes[nome]) return D.detalhes[nome];
+  const doPlano = nome.startsWith(PREFIXO_PLANO) ? refeicaoDoPlano(nome) : null;
+  if (doPlano) {
+    const comDado = doPlano.itens.filter((i) => i.id && alimento(i.id));
+    return {
+      calories: Math.round(totaisPrato(comDado).kcal),
+      ingredients: doPlano.itens.map((i) => i.gramas ? { name: i.nome, quantity: i.gramas, unit: "g" }
+        : { name: i.nome, quantity: 1, unit: i.medida || "porção" }),
+      plano: doPlano,
+      semDados: doPlano.itens.filter((i) => !(i.id && alimento(i.id))).map((i) => i.nome),
+    };
+  }
   if (nome.startsWith(PREFIXO_SALADA) && S.saladas[nome.slice(PREFIXO_SALADA.length)]) {
     const itens = itensSalada(S.saladas[nome.slice(PREFIXO_SALADA.length)].itens);
     return {
@@ -168,6 +184,7 @@ function opcoesRefeicao(refeicao) {
     ...D.refeicoes[refeicao].slice().sort((a, b) => a.localeCompare(b)),
     ...Object.entries(S.saladas).filter(([, d]) => d.refeicoes.includes(refeicao)).map(([n]) => PREFIXO_SALADA + n).sort(),
     ...Object.entries(S.pratos).filter(([, d]) => d.refeicoes.includes(refeicao)).map(([n]) => PREFIXO_PRATO + n).sort(),
+    ...(plano().cardapio || []).filter((r) => r.em.includes(refeicao)).map((r) => PREFIXO_PLANO + r.nome),
   ];
 }
 function selecao(dia, refeicao) {
@@ -356,7 +373,13 @@ function telaSemana() {
               ["Nenhuma", ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
             h("select", { class: "entrada", style: "width:76px", title: "Pessoas",
               onchange: (e) => { sel.people = Number(e.target.value); atualizar(); } },
-              [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `👤${n}`)))));
+              [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `👤${n}`)))),
+          det?.plano ? h("details", { class: "suave", style: "margin-top:4px" },
+            h("summary", {}, "📋 Ver refeição do plano"),
+            h("ul", {}, det.plano.itens.map((it) => h("li", {},
+              it.nome, it.gramas ? ` · ${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : "", it.medida ? ` (${it.medida})` : ""))),
+            det.semDados.length ? h("p", {}, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
+            det.plano.substituicoes?.length ? [h("b", {}, "Pode trocar:"), h("ul", {}, det.plano.substituicoes.map((t) => h("li", {}, t)))] : null) : null);
       })),
     h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, h("h3", {}, "💧 Hidratação"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de ${fmt(litros, 2)} L`)),
@@ -366,6 +389,8 @@ function telaSemana() {
       }, "🥛"))),
       barra(copos, totalCopos)),
     h("button", { class: "btn primario bloco", onclick: () => abrirModal(modalCompras) }, "🛒 Lista de compras da semana"),
+    plano().orientacoes?.length ? h("details", { class: "cartao" }, h("summary", {}, "📌 Orientações do plano"),
+      h("ul", {}, plano().orientacoes.map((t) => h("li", {}, t)))) : null,
   ];
 }
 function modalCompras() {
