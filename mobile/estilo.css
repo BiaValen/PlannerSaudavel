@@ -324,3 +324,21 @@ details.cartao > summary::-webkit-details-marker { display: none; }
 .alternador button.ativo { background: var(--cartao); color: var(--acento); box-shadow: var(--sombra); }
 .grafico .linha-alvo { stroke: var(--acento); stroke-width: 1.5; stroke-dasharray: 2 4; }
 .grafico .eixo.alvo { fill: var(--acento); font-weight: 700; }
+
+/* Exercício */
+.streak { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding: 12px 14px; border-radius: 18px; background: var(--amarelo-f); }
+.streak-fogo { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(145deg, #FFC15E, #F07A3C); color: #fff; box-shadow: 0 6px 14px rgba(240, 122, 60, .35); }
+.streak-fogo .ic { width: 26px; height: 26px; fill: currentColor; fill-opacity: .3; }
+.streak-fogo.apagado { background: var(--borda); color: var(--texto-suave); box-shadow: none; }
+.streak-num { font-family: var(--fonte-titulo); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.dias-treino { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: .75rem; font-weight: 700; color: var(--texto-suave); }
+.dia-treino { display: grid; justify-items: center; gap: 4px; }
+.dia-treino .bolinha { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--fundo); border: 2px dashed var(--borda); }
+.dia-treino .bolinha .ic { width: 17px; height: 17px; }
+.dia-treino.feito .bolinha { background: var(--verde-q); color: var(--verde-i); border: 0; }
+.dia-treino.hoje { color: var(--acento); }
+.dia-treino.hoje .bolinha { border-color: var(--acento); }
+.tipos { display: flex; flex-wrap: wrap; gap: 8px; }
+.tipos .chip { box-shadow: none; border: 1px solid var(--borda); }
+.alternador.tres { grid-template-columns: repeat(3, 1fr); }

@@ -42,6 +42,8 @@ function estadoInicial() {
     plano: null,            // plano alimentar carregado de meu_plano.json (fica só no aparelho)
     perfil: {},             // {nome, nascimento, altura (cm), pesoMeta (kg)}
     tema: "claro",          // "claro" | "escuro"
+    treinos: [],            // [{id, data, tipo, min, intensidade, obs}]
+    tiposTreino: [],        // tipos de exercício que você cadastrou
   };
 }
 let armazenamentoOk = true;
@@ -139,6 +141,7 @@ const ICONES = {
   busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   pessoa: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  haltere: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
   recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
 };
 function ic(nome, classe = "ic") {
@@ -462,6 +465,7 @@ function telaSemana() {
         onclick: () => { S.agua[dia] = i < copos && i === copos - 1 ? i : i + 1; atualizar(); },
       }, ic("gota")))),
       barra(copos, totalCopos)),
+    cartaoTreino(),
     h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, titulo("grafico", "Calorias da semana", "rosa"), h("span", { class: "suave" }, "toque num dia")),
       graficoSemana(metaKcal)),
@@ -529,6 +533,127 @@ const ILUSTRACAO = `<svg viewBox="0 0 160 130" aria-hidden="true">
   <path d="M28 14l3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#FFC94D"/>
   <path d="M146 64l2 4.5 4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2Z" fill="#FFC94D"/>
 </svg>`;
+/* ---------- Exercício: registro e streak semanal ---------- */
+// Meta do plano: pelo menos 3 treinos de 20 min por semana (semana de segunda a domingo)
+const META_TREINOS = 3, MIN_TREINO = 20;
+const TIPOS_TREINO = ["Academia", "Caminhada", "Dança", "Pilates", "Yoga", "Alongamento", "Funcional", "Luta", "Esporte"];
+const INTENSIDADES = ["Leve", "Moderada", "Intensa"];
+const formTreino = { data: hojeISO(), tipo: "Academia", min: 30, intensidade: "Moderada", obs: "" };
+const dataLocal = (iso) => new Date(iso + "T12:00");
+const isoDe = (d) => { const c = new Date(d); c.setMinutes(c.getMinutes() - c.getTimezoneOffset()); return c.toISOString().slice(0, 10); };
+function segundaDe(iso) {
+  const d = dataLocal(iso);
+  d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  return isoDe(d);
+}
+function somarDias(iso, n) { const d = dataLocal(iso); d.setDate(d.getDate() + n); return isoDe(d); }
+const contaNaMeta = (t) => (t.min || 0) >= MIN_TREINO;
+function treinosPorSemana() {
+  const semanas = {};
+  for (const t of S.treinos) if (contaNaMeta(t)) { const k = segundaDe(t.data); semanas[k] = (semanas[k] || 0) + 1; }
+  return semanas;
+}
+// Semanas seguidas batendo a meta. A semana atual só entra quando já bateu;
+// enquanto ainda não bateu, ela não quebra o streak das semanas anteriores.
+function streakSemanas() {
+  const semanas = treinosPorSemana();
+  let k = segundaDe(hojeISO()), n = 0;
+  if ((semanas[k] || 0) < META_TREINOS) k = somarDias(k, -7);
+  while ((semanas[k] || 0) >= META_TREINOS) { n++; k = somarDias(k, -7); }
+  return n;
+}
+function cartaoTreino() {
+  const seg = segundaDe(hojeISO());
+  const daSemana = S.treinos.filter((t) => segundaDe(t.data) === seg);
+  const validos = daSemana.filter(contaNaMeta).length;
+  const streak = streakSemanas();
+  const recentes = S.treinos.slice().sort((a, b) => b.data.localeCompare(a.data)).slice(0, 3);
+  return h("div", { class: "cartao" },
+    h("div", { class: "linha entre" }, titulo("haltere", "Exercício", "verde"),
+      h("span", { class: "selo" + (validos >= META_TREINOS ? "" : " pendente") }, `${Math.min(validos, META_TREINOS)}/${META_TREINOS} na semana`)),
+    h("div", { class: "streak" },
+      h("span", { class: "streak-fogo" + (streak ? "" : " apagado") }, ic("fogo")),
+      h("div", { class: "cresce" },
+        h("div", { class: "streak-num" }, streak === 1 ? "1 semana" : `${streak} semanas`),
+        h("div", { class: "suave" }, streak ? "seguidas batendo a meta" : `Faça ${META_TREINOS} treinos de ${MIN_TREINO} min nesta semana para começar`))),
+    h("div", { class: "dias-treino" }, D.dias.map((d, i) => {
+      const iso = somarDias(seg, i);
+      const fez = daSemana.some((t) => t.data === iso);
+      return h("div", { class: "dia-treino" + (fez ? " feito" : "") + (iso === hojeISO() ? " hoje" : "") },
+        h("span", { class: "bolinha" }, fez ? ic("haltere") : null), d.slice(0, 3));
+    })),
+    barra(Math.min(validos, META_TREINOS), META_TREINOS),
+    h("p", { class: "suave", style: "margin:0 0 10px" }, `Meta do plano: ${META_TREINOS} treinos de pelo menos ${MIN_TREINO} min por semana (segunda a domingo).`),
+    recentes.length ? h("ul", { class: "lista" }, recentes.map(linhaTreino)) : null,
+    h("div", { class: "grade2", style: "margin-top:10px" },
+      h("button", { class: "btn primario", onclick: () => { formTreino.data = hojeISO(); abrirModal(modalTreino); } }, ic("mais"), "Registrar"),
+      h("button", { class: "btn", onclick: () => abrirModal(modalHistoricoTreinos), disabled: !S.treinos.length }, ic("lista"), "Histórico")));
+}
+function linhaTreino(t) {
+  return h("li", {},
+    h("span", { class: "cresce" },
+      h("b", {}, t.tipo), ` · ${dataBR(t.data).slice(0, 5)}`,
+      h("div", { class: "suave" }, [t.min ? `${t.min} min` : null, t.intensidade, t.obs].filter(Boolean).join(" · "))),
+    h("button", { class: "btn perigo icone", "aria-label": `Excluir treino de ${dataBR(t.data)}`, onclick: () => {
+      if (confirm(`Excluir o treino de ${t.tipo} em ${dataBR(t.data)}?`)) { S.treinos.splice(S.treinos.indexOf(t), 1); atualizar(); }
+    } }, ic("lixeira")));
+}
+function modalHistoricoTreinos() {
+  const lista = S.treinos.slice().sort((a, b) => b.data.localeCompare(a.data));
+  const porTipo = {};
+  for (const t of S.treinos) porTipo[t.tipo] = (porTipo[t.tipo] || 0) + 1;
+  return [
+    titulo("lista", "Histórico de treinos", "verde", "h2"),
+    lista.length ? [
+      h("p", { class: "suave" }, `${lista.length} treino${lista.length > 1 ? "s" : ""}: `,
+        Object.entries(porTipo).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(" · "), "."),
+      h("ul", { class: "lista" }, lista.map(linhaTreino))]
+      : h("p", { class: "vazio" }, "Nenhum treino registrado ainda."),
+    h("button", { class: "btn bloco", style: "margin-top:12px", onclick: fecharModal }, "Fechar"),
+  ];
+}
+function modalTreino() {
+  const F = formTreino;
+  const tipos = [...TIPOS_TREINO, ...S.tiposTreino];
+  return [
+    titulo("haltere", "Registrar treino", "verde", "h2"),
+    h("label", { class: "campo" }, h("span", {}, "Data"),
+      h("input", { id: "treino-data", type: "date", value: F.data, max: hojeISO(), onchange: (e) => { F.data = e.target.value; } })),
+    h("div", { class: "campo" }, h("span", {}, "Tipo"),
+      h("div", { class: "tipos" }, tipos.map((t) => h("button", {
+        class: "chip" + (F.tipo === t ? " ativo" : ""), "aria-pressed": String(F.tipo === t),
+        onclick: () => { F.tipo = t; render(); } }, t)))),
+    h("div", { class: "linha" },
+      h("input", { id: "treino-novo-tipo", class: "entrada cresce", placeholder: "Outro tipo (ex.: Natação)" }),
+      h("button", { class: "btn", onclick: () => {
+        const campo = document.getElementById("treino-novo-tipo");
+        const novo = campo.value.trim();
+        if (!novo) return toast("Escreva o nome do tipo.");
+        if (!tipos.some((t) => t.toLowerCase() === novo.toLowerCase())) S.tiposTreino.push(novo);
+        F.tipo = tipos.find((t) => t.toLowerCase() === novo.toLowerCase()) || novo;
+        atualizar();
+      } }, ic("mais"), "Adicionar")),
+    h("label", { class: "campo" }, h("span", {}, "Duração (min)"),
+      h("input", { id: "treino-min", type: "number", inputMode: "numeric", min: "1", step: "5", value: F.min ?? "",
+        onchange: (e) => { const v = parseInt(e.target.value, 10); F.min = v > 0 ? v : null; } })),
+    h("div", { class: "campo" }, h("span", {}, "Intensidade"),
+      h("div", { class: "alternador tres", role: "radiogroup", "aria-label": "Intensidade" }, INTENSIDADES.map((n) =>
+        h("button", { class: F.intensidade === n ? "ativo" : "", role: "radio", "aria-checked": String(F.intensidade === n),
+          onclick: () => { F.intensidade = n; render(); } }, n)))),
+    h("label", { class: "campo" }, h("span", {}, "Observação (opcional)"),
+      h("input", { id: "treino-obs", value: F.obs, placeholder: "Ex.: treino de perna", oninput: (e) => { F.obs = e.target.value; } })),
+    h("button", { class: "btn primario bloco", style: "margin-top:8px", onclick: () => {
+      if (!F.data) return toast("Escolha a data.");
+      if (!F.min) return toast("Informe a duração em minutos.");
+      S.treinos.push({ id: Date.now().toString(36), data: F.data, tipo: F.tipo, min: F.min, intensidade: F.intensidade, obs: F.obs.trim() || null });
+      F.obs = "";
+      UI.modal = null; atualizar();
+      toast(F.min >= MIN_TREINO ? "Treino registrado!" : `Treino registrado. Para contar na meta, precisa de ${MIN_TREINO} min ou mais.`);
+    } }, "Salvar treino"),
+    h("button", { class: "btn bloco", style: "margin-top:8px", onclick: fecharModal }, "Cancelar"),
+  ];
+}
+
 function modalCompras() {
   const itens = listaCompras();
   const texto = itens.map((i) => `☐ ${fmt(i.qtd, i.qtd % 1 ? 1 : 0)} ${i.unidade} de ${i.nome}`).join("\n");

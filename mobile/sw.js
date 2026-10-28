@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para funcionar sem internet.
 // Ao mudar algum arquivo, aumente a versão para os celulares baixarem a nova.
-const CACHE = "planner-saudavel-v5";
+const CACHE = "planner-saudavel-v6";
 const ARQUIVOS = ["./", "index.html", "estilo.css", "app.js", "dados.js", "manifest.webmanifest", "icone.svg"];
 
 self.addEventListener("install", (e) => {
