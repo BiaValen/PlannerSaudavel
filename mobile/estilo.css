@@ -370,3 +370,6 @@ button.link .ic { width: 15px; height: 15px; }
 .orientacoes { margin: 0; padding-left: 20px; }
 .orientacoes li { margin: 6px 0; }
 .nav button { font-size: .7rem; }
+
+.dias-escolha { display: flex; flex-wrap: wrap; gap: 6px; }
+.dias-escolha .chip.mini { min-width: 46px; justify-content: center; }

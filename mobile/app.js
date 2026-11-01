@@ -77,6 +77,7 @@ const UI = {
   dia: D.dias[(hoje.getDay() + 6) % 7],
   abaPeso: "medidas",
   filtroNutri: "Todas",
+  nutriAbertos: new Set(),
   modoPrato: "plano",     // "plano" (regras da nutri) | "livre" (qualquer alimento)
   modal: null,
   busca: {},
@@ -1406,8 +1407,10 @@ function telaNutri() {
 function cartaoSugestao(c) {
   const nome = PREFIXO_PLANO + c.nome;
   const det = detalhes(nome);
-  const alvo = alvoNutri[c.nome] ??= { dia: UI.dia, refeicao: c.em[0] };
-  return h("details", { class: "cartao sugestao" },
+  const alvo = alvoNutri[c.nome] ??= { dias: [UI.dia], refeicao: c.em[0] };
+  // guarda quais cartões estão abertos, para não fecharem ao marcar os dias
+  return h("details", { class: "cartao sugestao", open: UI.nutriAbertos.has(c.nome),
+    ontoggle: (e) => { if (e.target.open) UI.nutriAbertos.add(c.nome); else UI.nutriAbertos.delete(c.nome); } },
     h("summary", {},
       h("span", { class: "linha entre" }, h("b", { class: "cresce" }, c.nome), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
       h("span", { class: "suave" }, c.em.map(semEmoji).join(" · "))),
@@ -1416,10 +1419,27 @@ function cartaoSugestao(c) {
       h("span", { class: "suave", style: "text-align:right" }, [it.gramas ? `${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : null, it.medida].filter(Boolean).join(" · "))))),
     det?.semDados?.length ? h("p", { class: "suave" }, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
     c.substituicoes?.length ? h("div", { class: "trocas" }, h("b", {}, "Pode trocar"), h("ul", {}, c.substituicoes.map((t) => h("li", {}, t)))) : null,
-    h("div", { class: "grade2" },
-      h("label", { class: "campo" }, h("span", {}, "Dia"), selectSimples(alvo.dia, D.dias, (v) => { alvo.dia = v; })),
-      h("label", { class: "campo" }, h("span", {}, "Refeição"), selectSimples(alvo.refeicao, c.em, (v) => { alvo.refeicao = v; }))),
-    h("button", { class: "btn primario bloco", onclick: () => porNoPlanner(PREFIXO_PLANO, c.nome, alvo.dia, alvo.refeicao) }, ic("semana"), "Pôr na semana"));
+    h("div", { class: "campo" }, h("span", {}, "Dias (toque para marcar vários)"),
+      h("div", { class: "dias-escolha", role: "group", "aria-label": "Dias" }, D.dias.map((d) => {
+        const marcado = alvo.dias.includes(d);
+        return h("button", { class: "chip mini" + (marcado ? " ativo" : ""), "aria-pressed": String(marcado), title: d,
+          onclick: () => { alvo.dias = marcado ? alvo.dias.filter((x) => x !== d) : D.dias.filter((x) => x === d || alvo.dias.includes(x)); render(); } }, d.slice(0, 3));
+      }),
+        h("button", { class: "chip mini", onclick: () => { alvo.dias = alvo.dias.length === 7 ? [] : [...D.dias]; render(); } }, alvo.dias.length === 7 ? "Limpar" : "Todos"))),
+    h("label", { class: "campo" }, h("span", {}, "Refeição"), selectSimples(alvo.refeicao, c.em, (v) => { alvo.refeicao = v; })),
+    h("button", { class: "btn primario bloco", disabled: !alvo.dias.length, onclick: () => porNoPlannerVarios(c.nome, alvo.dias, alvo.refeicao) }, ic("semana"),
+      alvo.dias.length > 1 ? `Pôr em ${alvo.dias.length} dias` : "Pôr na semana"));
+}
+function porNoPlannerVarios(nome, dias, refeicao) {
+  if (dias.length === 1) return porNoPlanner(PREFIXO_PLANO, nome, dias[0], refeicao);
+  const trocados = [];
+  for (const dia of dias) {
+    const sel = selecao(dia, refeicao);
+    if (sel.meal !== "Nenhuma" && sel.meal !== PREFIXO_PLANO + nome) trocados.push(dia.slice(0, 3));
+    sel.meal = PREFIXO_PLANO + nome;
+  }
+  atualizar();
+  toast(`Colocado em ${dias.length} dias – ${semEmoji(refeicao)}` + (trocados.length ? ` (substituiu o que havia em ${trocados.join(", ")}).` : "."));
 }
 
 /* ---------- Perfil e configurações ---------- */
