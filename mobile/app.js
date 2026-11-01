@@ -76,6 +76,7 @@ const UI = {
   aba: "semana",
   dia: D.dias[(hoje.getDay() + 6) % 7],
   abaPeso: "medidas",
+  filtroNutri: "Todas",
   modoPrato: "plano",     // "plano" (regras da nutri) | "livre" (qualquer alimento)
   modal: null,
   busca: {},
@@ -145,6 +146,7 @@ const ICONES = {
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   haltere: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  folha: '<path d="M5 19c0-8 5-14 15-15-.5 9-6 15-14 15H5Z"/><path d="M5 19c3-4 6-7 10-9"/>',
   recibo: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
 };
 function ic(nome, classe = "ic") {
@@ -1356,6 +1358,70 @@ function modalBackup() {
   ];
 }
 
+/* ---------- Tela: Sugestões da nutri (tudo vem do plano carregado no aparelho) ---------- */
+const alvoNutri = {};   // {nomeDaRefeicao: {dia, refeicao}} para o "Pôr na semana"
+function telaNutri() {
+  const P = plano();
+  if (!S.plano) {
+    return [h("div", { class: "cartao vazio-nutri" },
+      titulo("folha", "Carregue seu plano", "verde"),
+      h("p", { class: "suave" }, "As sugestões da sua nutri ficam só no seu celular. Carregue o arquivo meu_plano.json uma vez e elas aparecem aqui."),
+      h("button", { class: "btn primario bloco", onclick: () => abrirModal(modalBackup) }, ic("documento"), "Carregar meu_plano.json"))];
+  }
+  const cardapio = P.cardapio || [];
+  const comSugestao = REFEICOES.filter((r) => cardapio.some((c) => c.em.includes(r)));
+  if (UI.filtroNutri !== "Todas" && !comSugestao.includes(UI.filtroNutri)) UI.filtroNutri = "Todas";
+  const termo = semAcento((UI.busca.nutri || "").trim());
+  const lista = cardapio.filter((c) => (UI.filtroNutri === "Todas" || c.em.includes(UI.filtroNutri))
+    && (!termo || semAcento([c.nome, ...c.itens.map((i) => i.nome), ...(c.substituicoes || [])].join(" ")).includes(termo)));
+  return [
+    h("p", { class: "suave" }, P.nome),
+    h("div", { class: "stats" },
+      P.metaDiaKcal ? stat("fogo", "amarelo", "Meta do dia", `~${fmt(P.metaDiaKcal)}`, "kcal") : null,
+      P.aguaLitros ? stat("gota", "azul", "Água", `${fmt(P.aguaLitros, 1)} L`, "por dia") : null),
+    P.orientacoes?.length ? h("div", { class: "cartao" }, titulo("pino", "Orientações", "verde"),
+      h("ul", { class: "orientacoes" }, P.orientacoes.map((t) => h("li", {}, t)))) : null,
+    cardapio.length ? [
+      titulo("lista", "Opções de refeição", "rosa", "h2"),
+      h("div", { class: "chips" }, ["Todas", ...comSugestao].map((r) => h("button", {
+        class: "chip" + (UI.filtroNutri === r ? " ativo" : ""), onclick: () => { UI.filtroNutri = r; render(); },
+      }, r === "Todas" ? "Todas" : semEmoji(r)))),
+      h("label", { class: "busca" }, ic("busca"),
+        h("input", { class: "entrada", type: "search", placeholder: "Buscar na sugestão (ex.: tapioca)…", value: UI.busca.nutri || "",
+          oninput: (e) => { UI.busca.nutri = e.target.value; renderMantendoFoco(e.target); } })),
+      lista.length ? lista.map(cartaoSugestao) : h("p", { class: "vazio" }, "Nenhuma sugestão encontrada."),
+    ] : null,
+    P.opcoes ? [
+      titulo("prato", "Como montar o prato", "amarelo", "h2"),
+      h("p", { class: "suave" }, "Para almoço e jantar: escolha dentro de cada espaço. Dá para montar em Prato → Prato do plano."),
+      ESPACOS.filter((e) => P.opcoes[e]?.length).map((e) => h("details", { class: "cartao" },
+        h("summary", {}, h("span", { class: "linha entre" }, h("b", {}, e), h("span", { class: "suave" }, P.opcoes[e].length === 1 ? "1 opção" : `${P.opcoes[e].length} opções`))),
+        P.descricao?.[e] ? h("p", { class: "suave" }, P.descricao[e]) : null,
+        h("ul", { class: "lista" }, P.opcoes[e].filter((o) => alimento(o.id)).map((o) => h("li", {},
+          h("span", { class: "cresce" }, alimento(o.id).nome, daEpoca(alimento(o.id).nome) ? " 🌱" : ""),
+          h("span", { class: "suave", style: "text-align:right" }, [`${fmt(o.gramas)} g`, o.medida].filter(Boolean).join(" · ")))))))
+    ] : null,
+  ];
+}
+function cartaoSugestao(c) {
+  const nome = PREFIXO_PLANO + c.nome;
+  const det = detalhes(nome);
+  const alvo = alvoNutri[c.nome] ??= { dia: UI.dia, refeicao: c.em[0] };
+  return h("details", { class: "cartao sugestao" },
+    h("summary", {},
+      h("span", { class: "linha entre" }, h("b", { class: "cresce" }, c.nome), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
+      h("span", { class: "suave" }, c.em.map(semEmoji).join(" · "))),
+    h("ul", { class: "lista" }, c.itens.map((it) => h("li", {},
+      h("span", { class: "cresce" }, it.nome),
+      h("span", { class: "suave", style: "text-align:right" }, [it.gramas ? `${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : null, it.medida].filter(Boolean).join(" · "))))),
+    det?.semDados?.length ? h("p", { class: "suave" }, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
+    c.substituicoes?.length ? h("div", { class: "trocas" }, h("b", {}, "Pode trocar"), h("ul", {}, c.substituicoes.map((t) => h("li", {}, t)))) : null,
+    h("div", { class: "grade2" },
+      h("label", { class: "campo" }, h("span", {}, "Dia"), selectSimples(alvo.dia, D.dias, (v) => { alvo.dia = v; })),
+      h("label", { class: "campo" }, h("span", {}, "Refeição"), selectSimples(alvo.refeicao, c.em, (v) => { alvo.refeicao = v; }))),
+    h("button", { class: "btn primario bloco", onclick: () => porNoPlanner(PREFIXO_PLANO, c.nome, alvo.dia, alvo.refeicao) }, ic("semana"), "Pôr na semana"));
+}
+
 /* ---------- Perfil e configurações ---------- */
 function aplicarTema() {
   const escuro = S.tema === "escuro";
@@ -1410,11 +1476,11 @@ function modalPerfil() {
 }
 
 /* ---------- Render ---------- */
-const ABAS = [["semana", "semana", "Semana"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
-const TITULOS = { semana: "Plano da semana", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
+const ABAS = [["semana", "semana", "Semana"], ["nutri", "folha", "Nutri"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
+const TITULOS = { semana: "Plano da semana", nutri: "Sugestões da nutri", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
 function render() {
   const rolagem = window.scrollY;
-  const telas = { semana: telaSemana, salada: telaSalada, prato: telaPrato, peso: telaPeso };
+  const telas = { semana: telaSemana, nutri: telaNutri, salada: telaSalada, prato: telaPrato, peso: telaPeso };
   const app = document.getElementById("app");
   const partes = [
     h("header", { class: "topo" },
