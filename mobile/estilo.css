@@ -373,3 +373,10 @@ button.link .ic { width: 15px; height: 15px; }
 
 .dias-escolha { display: flex; flex-wrap: wrap; gap: 6px; }
 .dias-escolha .chip.mini { min-width: 46px; justify-content: center; }
+
+/* Refeições fora do plano */
+.selo-fora { margin-left: 8px; font-size: .7rem; padding: 2px 8px; vertical-align: middle; }
+.aviso-livres { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; border-radius: 16px; background: var(--rosa-f); font-size: .9rem; }
+.aviso-livres .ic { color: var(--rosa-i); }
+.aviso-livres.acima { background: var(--aviso-claro); }
+.aviso-livres.acima .ic { color: var(--aviso-texto); }

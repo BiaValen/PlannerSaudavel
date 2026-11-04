@@ -253,6 +253,20 @@ function detalhesSel(sel) {
   if (!sel || !sel.meal || sel.meal === "Nenhuma") return null;
   return sel.meal === LIVRE ? detalhesLivre(sel.livre) : detalhes(sel.meal);
 }
+// "Fora do plano": receitas extras do app, refeição montada no dia e pratos livres (contam como refeição livre)
+const RECEITAS_EXTRAS = new Set(Object.values(D.refeicoes).flat());
+function foraDoPlano(meal) {
+  return RECEITAS_EXTRAS.has(meal) || meal === LIVRE
+    || (meal.startsWith(PREFIXO_PRATO) && !!S.pratos[meal.slice(PREFIXO_PRATO.length)]?.livre);
+}
+function contarForaDoPlano() {
+  return D.dias.reduce((t, d) => t + REFEICOES.filter((r) => foraDoPlano(S.planner[d]?.[r]?.meal || "")).length, 0);
+}
+// Quantas refeições livres por semana o plano permite (lido das orientações, ex.: "2 refeições livres")
+function livresPermitidas() {
+  for (const t of plano().orientacoes || []) { const m = /(\d+)\s+refei[çc][õo]es\s+livres/i.exec(t); if (m) return +m[1]; }
+  return null;
+}
 function opcoesRefeicao(refeicao) {
   return [
     ...D.refeicoes[refeicao].slice().sort((a, b) => a.localeCompare(b)),
@@ -451,6 +465,14 @@ function telaSemana() {
       stat("gota", "azul", "Água", `${fmt(copos * 0.25, 2)} L`, `de ${fmt(litros, 2)} L`),
       stat("talheres", "rosa", "Refeições", `${escolhidas}/${REFEICOES.length}`, "escolhidas no dia"),
       stat("carrinho", "verde", "Compras", fmt(nCompras), nCompras === 1 ? "item na semana" : "itens na semana")),
+    (() => {
+      const fora = contarForaDoPlano(), limite = livresPermitidas();
+      if (!fora && !limite) return null;
+      return h("div", { class: "aviso-livres" + (limite && fora > limite ? " acima" : "") },
+        ic("coracao"), h("span", {}, h("b", {}, limite ? `${fora} de ${limite}` : fora),
+          ` refeiç${fora === 1 && !limite ? "ão" : "ões"} fora do plano nesta semana`,
+          limite ? ` (seu plano permite ${limite} livres)` : "", "."));
+    })(),
     h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, titulo("semana", dia, "lilas", "h2"),
         h("span", { class: "selo" }, metaKcal ? `${fmt(kcal)} de ~${fmt(metaKcal)} kcal` : `${fmt(kcal)} kcal`)),
@@ -463,14 +485,20 @@ function telaSemana() {
         return h("div", { class: "refeicao" },
           h("span", { class: "tile " + cor }, ic(icone)),
           h("div", { class: "cresce" },
-            h("div", { class: "linha entre" }, h("b", {}, semEmoji(ref)), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
+            h("div", { class: "linha entre" }, h("b", {}, semEmoji(ref), foraDoPlano(sel.meal) ? h("span", { class: "selo pendente selo-fora" }, "fora do plano") : null),
+              det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
             h("div", { class: "linha", style: "margin-top:6px" },
               h("select", { class: "entrada cresce", "aria-label": semEmoji(ref), onchange: (e) => {
                 sel.meal = e.target.value;
                 if (sel.meal === LIVRE) { sel.livre ??= {}; UI.modal = () => modalLivre(dia, ref); }
                 atualizar();
               } },
-                ["Nenhuma", LIVRE, ...opcoes].map((o) => h("option", { value: o, selected: o === sel.meal }, o))),
+                h("option", { value: "Nenhuma", selected: sel.meal === "Nenhuma" }, "Nenhuma"),
+                [["Do plano da nutri", opcoes.filter((o) => o.startsWith(PREFIXO_PLANO))],
+                 ["Suas saladas e pratos", opcoes.filter((o) => !o.startsWith(PREFIXO_PLANO) && !foraDoPlano(o))],
+                 ["Fora do plano (refeição livre)", [LIVRE, ...opcoes.filter((o) => foraDoPlano(o))]]]
+                  .filter(([, l]) => l.length).map(([rotulo, l]) => h("optgroup", { label: rotulo },
+                    l.map((o) => h("option", { value: o, selected: o === sel.meal }, o))))),
               h("select", { class: "entrada pessoas", "aria-label": "Pessoas",
                 onchange: (e) => { sel.people = Number(e.target.value); atualizar(); } },
                 [1, 2, 3, 4, 5, 6].map((n) => h("option", { value: n, selected: n === (sel.people || 1) }, `${n} pess.`)))),
@@ -850,7 +878,7 @@ function itensPrato() {
 }
 function abasPrato() {
   return h("div", { class: "chips" },
-    [["plano", "prato", "Prato do plano"], ["livre", "lapis", "Livre"]].map(([k, icone, r]) =>
+    [["salada", "salada", "Salada"], ["plano", "prato", "Prato do plano"], ["livre", "lapis", "Livre"]].map(([k, icone, r]) =>
       h("button", { class: "chip" + (UI.modoPrato === k ? " ativo" : ""), onclick: () => { UI.modoPrato = k; render(); } }, ic(icone), r)));
 }
 function telaPratoLivre() {
@@ -884,6 +912,7 @@ function telaPratoLivre() {
 }
 function telaPrato() {
   if (UI.modoPrato === "livre") return telaPratoLivre();
+  if (UI.modoPrato === "salada") return [abasPrato(), telaSalada()];
   const P = S.rascunho.prato;
   const itens = itensPrato();
   const t = totaisPrato(itens);
@@ -1496,7 +1525,7 @@ function modalPerfil() {
 }
 
 /* ---------- Render ---------- */
-const ABAS = [["semana", "semana", "Semana"], ["nutri", "folha", "Nutri"], ["salada", "salada", "Salada"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
+const ABAS = [["semana", "semana", "Semana"], ["nutri", "folha", "Nutri"], ["prato", "prato", "Prato"], ["peso", "peso", "Peso"]];
 const TITULOS = { semana: "Plano da semana", nutri: "Sugestões da nutri", salada: "Monte sua salada", prato: "Monte seu prato", peso: "Peso e medidas" };
 function render() {
   const rolagem = window.scrollY;
@@ -1505,7 +1534,7 @@ function render() {
   const partes = [
     h("header", { class: "topo" },
       h("span", { class: "logo" }, ic("salada")),
-      h("div", { class: "cresce" }, h("div", { class: "marca" }, S.perfil.nome ? `Olá, ${S.perfil.nome}!` : "Planner Saudável"), h("h1", {}, TITULOS[UI.aba])),
+      h("div", { class: "cresce" }, h("div", { class: "marca" }, S.perfil.nome ? `Olá, ${S.perfil.nome}!` : "Planner Saudável"), h("h1", {}, UI.aba === "prato" && UI.modoPrato === "salada" ? "Monte sua salada" : TITULOS[UI.aba])),
       h("button", { class: "icone-btn", "aria-label": "Referências", title: "Referências", onclick: () => abrirModal(modalReferencias) }, ic("ajuda")),
       h("button", { class: "avatar", "aria-label": "Perfil e configurações", title: "Perfil e configurações", onclick: () => abrirModal(modalPerfil) }, inicial() || ic("pessoa"))),
     !armazenamentoOk ? h("p", { class: "aviso" }, "⚠️ Não foi possível salvar neste navegador. Abra o perfil (círculo no topo) → Backup e plano alimentar para exportar seus dados.") : null,
