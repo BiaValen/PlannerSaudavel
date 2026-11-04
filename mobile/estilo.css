@@ -380,3 +380,17 @@ button.link .ic { width: 15px; height: 15px; }
 .aviso-livres .ic { color: var(--rosa-i); }
 .aviso-livres.acima { background: var(--aviso-claro); }
 .aviso-livres.acima .ic { color: var(--aviso-texto); }
+
+/* Montagem por partes e livro de receitas */
+.grupo { margin: 12px 0; }
+.grupo-nome { font-weight: 800; font-size: .92rem; margin-bottom: 4px; }
+.grupo .opcao { padding: 8px 2px; }
+.preparo { background: var(--amarelo-f); border-radius: 14px; padding: 8px 12px; margin: 10px 0; }
+.preparo summary { display: inline-flex; align-items: center; gap: 6px; }
+.preparo p { margin: 6px 0 2px; font-size: .92rem; }
+.obs { margin: 6px 0; }
+.receita ul { margin: 4px 0 10px; padding-left: 20px; }
+.receita li { margin: 3px 0; }
+.receita > summary { list-style: none; }
+.receita > summary::-webkit-details-marker { display: none; }
+.opcao input[type=radio] { width: 20px; height: 20px; accent-color: var(--acento); flex: none; }

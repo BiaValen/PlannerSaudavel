@@ -207,17 +207,24 @@ const totaisPrato = (itens) => somar(itens.filter((i) => alimento(i.id)).map((i)
 function refeicaoDoPlano(nome) {
   return (plano().cardapio || []).find((r) => PREFIXO_PLANO + r.nome === nome);
 }
-function detalhes(nome) {
+// Refeições do plano montadas por partes: cada grupo (pão, proteína, fruta…) tem opções; "escolhas" = {grupo: opção}
+const opcaoItens = (o) => o.itens || [{ nome: o.nome, gramas: o.gramas, medida: o.medida, id: o.id }];
+function itensPlano(r, escolhas = {}) {
+  if (!r.grupos) return r.itens;
+  return r.grupos.flatMap((g, i) => opcaoItens(g.opcoes[escolhas[i] ?? 0] || g.opcoes[0]));
+}
+const totaisItens = (itens) => totaisPrato(itens.filter((i) => i.id && alimento(i.id)));
+function detalhes(nome, escolhas) {
   if (D.detalhes[nome]) return D.detalhes[nome];
   const doPlano = nome.startsWith(PREFIXO_PLANO) ? refeicaoDoPlano(nome) : null;
   if (doPlano) {
-    const comDado = doPlano.itens.filter((i) => i.id && alimento(i.id));
+    const itens = itensPlano(doPlano, escolhas);
     return {
-      calories: Math.round(totaisPrato(comDado).kcal),
-      ingredients: doPlano.itens.map((i) => i.gramas ? { name: i.nome, quantity: i.gramas, unit: "g" }
+      calories: Math.round(totaisItens(itens).kcal),
+      ingredients: itens.map((i) => i.gramas ? { name: i.nome, quantity: i.gramas, unit: "g" }
         : { name: i.nome, quantity: 1, unit: i.medida || "porção" }),
-      plano: doPlano,
-      semDados: doPlano.itens.filter((i) => !(i.id && alimento(i.id))).map((i) => i.nome),
+      plano: doPlano, itens,
+      semDados: itens.filter((i) => !(i.id && alimento(i.id))).map((i) => i.nome),
     };
   }
   if (nome.startsWith(PREFIXO_SALADA) && S.saladas[nome.slice(PREFIXO_SALADA.length)]) {
@@ -251,7 +258,7 @@ function detalhesLivre(itens) {
 }
 function detalhesSel(sel) {
   if (!sel || !sel.meal || sel.meal === "Nenhuma") return null;
-  return sel.meal === LIVRE ? detalhesLivre(sel.livre) : detalhes(sel.meal);
+  return sel.meal === LIVRE ? detalhesLivre(sel.livre) : detalhes(sel.meal, sel.escolhas);
 }
 // "Fora do plano": receitas extras do app, refeição montada no dia e pratos livres (contam como refeição livre)
 const RECEITAS_EXTRAS = new Set(Object.values(D.refeicoes).flat());
@@ -490,6 +497,7 @@ function telaSemana() {
             h("div", { class: "linha", style: "margin-top:6px" },
               h("select", { class: "entrada cresce", "aria-label": semEmoji(ref), onchange: (e) => {
                 sel.meal = e.target.value;
+                delete sel.escolhas;   // as opções escolhidas valem só para a refeição anterior
                 if (sel.meal === LIVRE) { sel.livre ??= {}; UI.modal = () => modalLivre(dia, ref); }
                 atualizar();
               } },
@@ -507,10 +515,11 @@ function telaSemana() {
               " ", h("button", { class: "link", onclick: () => abrirModal(() => modalLivre(dia, ref)) }, ic("lapis"), "Editar alimentos")) : null,
             det?.plano ? h("details", { class: "suave detalhe-plano" },
               h("summary", {}, ic("lista"), "Ver refeição do plano"),
-              h("ul", {}, det.plano.itens.map((it) => h("li", {},
+              det.plano.grupos?.some((g) => g.opcoes.length > 1) ? h("button", { class: "link", onclick: () => abrirModal(() => modalEscolhas(dia, ref)) }, ic("lapis"), "Escolher as opções") : null,
+              h("ul", {}, det.itens.map((it) => h("li", {},
                 it.nome, it.gramas ? ` · ${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : "", it.medida ? ` (${it.medida})` : ""))),
               det.semDados.length ? h("p", {}, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
-              det.plano.substituicoes?.length ? [h("b", {}, "Pode trocar:"), h("ul", {}, det.plano.substituicoes.map((t) => h("li", {}, t)))] : null) : null));
+              !det.plano.grupos && det.plano.substituicoes?.length ? [h("b", {}, "Pode trocar:"), h("ul", {}, det.plano.substituicoes.map((t) => h("li", {}, t)))] : null) : null));
       })),
     h("div", { class: "cartao" },
       h("div", { class: "linha entre" }, titulo("gota", "Hidratação", "azul"), h("span", { class: "suave" }, `${fmt(copos * 0.25, 2)} de ${fmt(litros, 2)} L`)),
@@ -1421,6 +1430,7 @@ function telaNutri() {
           oninput: (e) => { UI.busca.nutri = e.target.value; renderMantendoFoco(e.target); } })),
       lista.length ? lista.map(cartaoSugestao) : h("p", { class: "vazio" }, "Nenhuma sugestão encontrada."),
     ] : null,
+    P.receitas?.length ? livroReceitas(P) : null,
     P.opcoes ? [
       titulo("prato", "Como montar o prato", "amarelo", "h2"),
       h("p", { class: "suave" }, "Para almoço e jantar: escolha dentro de cada espaço. Dá para montar em Prato → Prato do plano."),
@@ -1433,21 +1443,101 @@ function telaNutri() {
     ] : null,
   ];
 }
+// Lista os grupos de uma refeição do plano para escolher (como na salada). Grupos com muitas opções viram lista suspensa.
+function seletorGrupos(r, escolhas, aoMudar, chave) {
+  const textoOpcao = (o) => {
+    const its = opcaoItens(o), t = totaisItens(its), temDado = its.some((i) => i.id && alimento(i.id));
+    return { medida: [o.gramas ? `${fmt(o.gramas, o.gramas % 1 ? 1 : 0)} g` : null, o.medida].filter(Boolean).join(" · "), kcal: temDado ? `${fmt(t.kcal)} kcal` : "—" };
+  };
+  return r.grupos.map((g, gi) => {
+    const atual = escolhas[gi] ?? 0;
+    if (g.opcoes.length === 1) {
+      const o = g.opcoes[0];
+      return h("div", { class: "grupo" }, h("div", { class: "grupo-nome" }, g.nome),
+        h("ul", { class: "lista" }, opcaoItens(o).map((it) => h("li", {},
+          h("span", { class: "cresce" }, it.nome),
+          h("span", { class: "suave", style: "text-align:right" }, [it.gramas ? `${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : null, it.medida].filter(Boolean).join(" · "))))));
+    }
+    const cab = h("div", { class: "grupo-nome" }, g.nome, h("span", { class: "suave" }, ` · escolha 1 de ${g.opcoes.length}`));
+    if (g.opcoes.length > 5) {
+      const o = g.opcoes[atual], t = textoOpcao(o);
+      return h("div", { class: "grupo" }, cab,
+        h("select", { class: "entrada", "aria-label": g.nome, onchange: (e) => { escolhas[gi] = Number(e.target.value); aoMudar(); } },
+          g.opcoes.map((x, oi) => h("option", { value: oi, selected: oi === atual }, `${x.nome}${textoOpcao(x).medida ? " – " + textoOpcao(x).medida : ""}`))),
+        h("div", { class: "suave", style: "margin-top:4px" }, `${t.medida}${t.kcal !== "—" ? " · " + t.kcal : " · sem dado em tabela"}`));
+    }
+    return h("div", { class: "grupo" }, cab, g.opcoes.map((o, oi) => {
+      const t = textoOpcao(o);
+      return h("label", { class: "opcao" },
+        h("input", { type: "radio", name: `${chave}-${gi}`, checked: oi === atual, onchange: () => { escolhas[gi] = oi; aoMudar(); } }),
+        h("span", { class: "cresce" }, o.nome, t.medida ? h("div", { class: "suave" }, t.medida) : null),
+        h("span", { class: "kcal" }, t.kcal));
+    }));
+  });
+}
+function blocoPreparo(r) {
+  return [
+    r.preparo ? h("details", { class: "preparo" }, h("summary", {}, ic("recibo"), "Modo de preparo"), h("p", {}, r.preparo)) : null,
+    r.obs ? h("p", { class: "suave obs" }, r.obs) : null,
+  ];
+}
+function modalEscolhas(dia, ref) {
+  const sel = selecao(dia, ref);
+  const r = refeicaoDoPlano(sel.meal);
+  if (!r) return [h("p", {}, "Refeição não encontrada no plano."), h("button", { class: "btn bloco", onclick: fecharModal }, "Fechar")];
+  sel.escolhas ??= {};
+  const det = detalhes(sel.meal, sel.escolhas);
+  return [
+    titulo("lista", `${semEmoji(ref)} · ${dia}`, "rosa", "h2"),
+    h("div", { class: "linha entre" }, h("b", {}, r.nome), h("span", { class: "kcal-tag" }, `~${det.calories} kcal`)),
+    seletorGrupos(r, sel.escolhas, atualizar, "modal"),
+    det.semDados.length ? h("p", { class: "suave" }, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
+    blocoPreparo(r),
+    h("button", { class: "btn primario bloco", style: "margin-top:12px", onclick: fecharModal }, "Pronto"),
+  ];
+}
+function livroReceitas(P) {
+  const filtro = UI.filtroReceitas || "todas";
+  const termo = semAcento((UI.busca.receitas || "").trim());
+  const lista = P.receitas.filter((r) => (filtro === "todas" || r.origem === filtro)
+    && (!termo || semAcento([r.nome, ...r.ingredientes].join(" ")).includes(termo)));
+  const fontes = P.fontesReceitas || {};
+  return [
+    titulo("livro", "Livro de receitas", "verde", "h2"),
+    h("div", { class: "chips" }, [["todas", "Todas"], ["nutri", "Da nutri"], ["ebook", "E-book de lanches"]].map(([k, r]) =>
+      h("button", { class: "chip" + (filtro === k ? " ativo" : ""), onclick: () => { UI.filtroReceitas = k; render(); } }, r))),
+    h("label", { class: "busca" }, ic("busca"),
+      h("input", { class: "entrada", type: "search", placeholder: "Buscar receita ou ingrediente…", value: UI.busca.receitas || "",
+        oninput: (e) => { UI.busca.receitas = e.target.value; renderMantendoFoco(e.target); } })),
+    lista.length ? lista.map((r) => h("details", { class: "cartao receita" },
+      h("summary", {}, h("span", { class: "linha entre" }, h("b", { class: "cresce" }, r.nome),
+        h("span", { class: "selo" + (r.origem === "nutri" ? "" : " pendente") }, r.origem === "nutri" ? "da nutri" : "e-book"))),
+      h("b", {}, "Ingredientes"),
+      h("ul", {}, r.ingredientes.map((t) => h("li", {}, t))),
+      h("b", {}, "Modo de preparo"),
+      h("p", {}, r.preparo),
+      r.origem === "ebook" ? h("p", { class: "suave" }, "Receita do e-book: as quantidades não são as do seu plano. Use como ideia e ajuste às porções da nutri.") : null,
+      h("p", { class: "suave" }, "Fonte: ", fontes[r.origem] || r.origem)))
+      : h("p", { class: "vazio" }, "Nenhuma receita encontrada."),
+  ];
+}
 function cartaoSugestao(c) {
   const nome = PREFIXO_PLANO + c.nome;
-  const det = detalhes(nome);
-  const alvo = alvoNutri[c.nome] ??= { dias: [UI.dia], refeicao: c.em[0] };
+  const alvo = alvoNutri[c.nome] ??= { dias: [UI.dia], refeicao: c.em[0], escolhas: {} };
+  const det = detalhes(nome, alvo.escolhas);
   // guarda quais cartões estão abertos, para não fecharem ao marcar os dias
   return h("details", { class: "cartao sugestao", open: UI.nutriAbertos.has(c.nome),
     ontoggle: (e) => { if (e.target.open) UI.nutriAbertos.add(c.nome); else UI.nutriAbertos.delete(c.nome); } },
     h("summary", {},
       h("span", { class: "linha entre" }, h("b", { class: "cresce" }, c.nome), det ? h("span", { class: "kcal-tag" }, `~${det.calories} kcal`) : null),
       h("span", { class: "suave" }, c.em.map(semEmoji).join(" · "))),
-    h("ul", { class: "lista" }, c.itens.map((it) => h("li", {},
-      h("span", { class: "cresce" }, it.nome),
-      h("span", { class: "suave", style: "text-align:right" }, [it.gramas ? `${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : null, it.medida].filter(Boolean).join(" · "))))),
+    c.grupos ? seletorGrupos(c, alvo.escolhas, render, "nutri-" + c.nome)
+      : h("ul", { class: "lista" }, c.itens.map((it) => h("li", {},
+        h("span", { class: "cresce" }, it.nome),
+        h("span", { class: "suave", style: "text-align:right" }, [it.gramas ? `${fmt(it.gramas, it.gramas % 1 ? 1 : 0)} g` : null, it.medida].filter(Boolean).join(" · "))))),
     det?.semDados?.length ? h("p", { class: "suave" }, `Sem dado em tabela (fora das calorias — veja o rótulo): ${det.semDados.join(", ")}.`) : null,
-    c.substituicoes?.length ? h("div", { class: "trocas" }, h("b", {}, "Pode trocar"), h("ul", {}, c.substituicoes.map((t) => h("li", {}, t)))) : null,
+    !c.grupos && c.substituicoes?.length ? h("div", { class: "trocas" }, h("b", {}, "Pode trocar"), h("ul", {}, c.substituicoes.map((t) => h("li", {}, t)))) : null,
+    blocoPreparo(c),
     h("div", { class: "campo" }, h("span", {}, "Dias (toque para marcar vários)"),
       h("div", { class: "dias-escolha", role: "group", "aria-label": "Dias" }, D.dias.map((d) => {
         const marcado = alvo.dias.includes(d);
@@ -1456,19 +1546,19 @@ function cartaoSugestao(c) {
       }),
         h("button", { class: "chip mini", onclick: () => { alvo.dias = alvo.dias.length === 7 ? [] : [...D.dias]; render(); } }, alvo.dias.length === 7 ? "Limpar" : "Todos"))),
     h("label", { class: "campo" }, h("span", {}, "Refeição"), selectSimples(alvo.refeicao, c.em, (v) => { alvo.refeicao = v; })),
-    h("button", { class: "btn primario bloco", disabled: !alvo.dias.length, onclick: () => porNoPlannerVarios(c.nome, alvo.dias, alvo.refeicao) }, ic("semana"),
+    h("button", { class: "btn primario bloco", disabled: !alvo.dias.length, onclick: () => porNoPlannerVarios(c.nome, alvo.dias, alvo.refeicao, alvo.escolhas) }, ic("semana"),
       alvo.dias.length > 1 ? `Pôr em ${alvo.dias.length} dias` : "Pôr na semana"));
 }
-function porNoPlannerVarios(nome, dias, refeicao) {
-  if (dias.length === 1) return porNoPlanner(PREFIXO_PLANO, nome, dias[0], refeicao);
+function porNoPlannerVarios(nome, dias, refeicao, escolhas = {}) {
   const trocados = [];
   for (const dia of dias) {
     const sel = selecao(dia, refeicao);
     if (sel.meal !== "Nenhuma" && sel.meal !== PREFIXO_PLANO + nome) trocados.push(dia.slice(0, 3));
     sel.meal = PREFIXO_PLANO + nome;
+    sel.escolhas = { ...escolhas };
   }
   atualizar();
-  toast(`Colocado em ${dias.length} dias – ${semEmoji(refeicao)}` + (trocados.length ? ` (substituiu o que havia em ${trocados.join(", ")}).` : "."));
+  toast(`Colocado em ${dias.length === 1 ? dias[0] : dias.length + " dias"} – ${semEmoji(refeicao)}` + (trocados.length ? ` (substituiu o que havia em ${trocados.join(", ")}).` : "."));
 }
 
 /* ---------- Perfil e configurações ---------- */
